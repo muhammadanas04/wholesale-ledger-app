@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Settings as SettingsIcon, Save, Database, Globe, ShoppingBag } from 'lucide-react'
+import { Settings as SettingsIcon, Save, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Settings() {
@@ -8,13 +8,11 @@ export default function Settings() {
   const [config, setConfig] = useState({
     shop_name: '',
     currency_symbol: '₹',
-    worker_url: '',
-    sync_token: '',
   })
 
   useEffect(() => {
     async function load() {
-      const keys = ['shop_name', 'currency_symbol', 'worker_url', 'sync_token']
+      const keys = ['shop_name', 'currency_symbol']
       const newConfig = { ...config }
       for (const key of keys) {
         const val = await ipc('meta:get', key)
@@ -73,34 +71,6 @@ export default function Settings() {
                 onChange={(e) => setConfig({ ...config, currency_symbol: e.target.value })}
                 placeholder="e.g. ₹ or $"
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Sync Settings */}
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
-            <Globe className="w-4 h-4 text-green-500" /> Cloud Sync (Cloudflare D1)
-          </div>
-          <div className="p-5 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Worker URL</label>
-              <input
-                value={config.worker_url}
-                onChange={(e) => setConfig({ ...config, worker_url: e.target.value })}
-                placeholder="https://your-worker.workers.dev"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sync Token</label>
-              <input
-                type="password"
-                value={config.sync_token}
-                onChange={(e) => setConfig({ ...config, sync_token: e.target.value })}
-                placeholder="Your secret token"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
               />
             </div>
           </div>

@@ -29,11 +29,11 @@ async function runSyncCycle() {
   try {
     const db = getDatabase()
     const lastSync = getMeta('last_sync_time') || '1970-01-01 00:00:00'
-    const workerUrl = getMeta('worker_url')
-    const secret = getMeta('sync_token')
+    const workerUrl = process.env.WORKER_URL
+    const secret = process.env.SYNC_TOKEN
 
     if (!workerUrl || !secret) {
-      throw new Error('Sync not configured — set Worker URL and Token in Settings')
+      throw new Error('Sync not configured — set WORKER_URL and SYNC_TOKEN in .env file')
     }
 
     // ── 1. PULL ──────────────────────────────────────────────────

@@ -1,5 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
+
+// Load .env from project root (dev) or from app resources / userData (packaged)
+const envPath = app.isPackaged
+  ? path.join(app.getPath('userData'), '.env')
+  : path.join(__dirname, '..', '.env')
+require('dotenv').config({ path: envPath })
 const { autoUpdater } = require('electron-updater')
 const { initDatabase } = require('./db')
 const { registerIpcHandlers } = require('./ipc')

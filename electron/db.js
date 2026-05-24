@@ -13,14 +13,6 @@ function initDatabase() {
 
   migrate()
 
-  // Set defaults for sync if not present
-  if (!getMeta('sync_token')) {
-    setMeta('sync_token', 'wholesale-sync-token-2026')
-  }
-  if (!getMeta('worker_url')) {
-    setMeta('worker_url', 'https://wholesale-sync.muhammadanas.workers.dev')
-  }
-
   return db
 }
 

@@ -69,6 +69,14 @@
 - **Rewrote `Payments.jsx`** — customer select, amount, date, notes form with recent payments table below
 - **Phase 4 fully complete** — all 10 screens implemented
 
+## Phase 6 — Cloudflare D1 Sync (env-based config)
+
+- **Removed Cloudflare D1 config from Settings** — worker URL and sync token fields removed from `Settings.jsx`
+- **Added `dotenv`** — loads `.env` in main process from project root (dev) or `userData` (packaged)
+- **Updated `sync.js`** — reads `WORKER_URL` and `SYNC_TOKEN` directly from `process.env` instead of `_meta` table
+- **Removed defaults from `db.js`** — no longer seeds `worker_url` / `sync_token` into `_meta`
+- **Updated `.env`** — added `WORKER_URL` and `SYNC_TOKEN` entries
+
 ## Phase 5 — Reports & PDF Export
 
 - **Added `app:print-to-pdf` handler** in `electron/ipc.js` using Electron's `printToPDF` and `dialog` APIs
