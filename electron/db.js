@@ -94,6 +94,14 @@ function migrate() {
       updated_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS deleted_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      table_name TEXT NOT NULL,
+      row_id INTEGER NOT NULL,
+      deleted_at TEXT DEFAULT (datetime('now')),
+      synced INTEGER DEFAULT 0
+    );
   `)
 
   const version = db.prepare("SELECT value FROM _meta WHERE key = 'schema_version'").get()
@@ -349,13 +357,16 @@ function deleteSale(id) {
 
   const deleteItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?')
   const deleteSale = db.prepare('DELETE FROM sales WHERE id = ?')
+  const logDelete = db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)')
 
   const transaction = db.transaction(() => {
     for (const item of sale.items) {
       updateStock.run(item.qty, item.product_id)
+      logDelete.run('sale_items', item.id)
     }
     deleteItems.run(id)
     deleteSale.run(id)
+    logDelete.run('sales', id)
     recalculateBalance(sale.customer_id)
   })
 
@@ -391,6 +402,7 @@ function deletePayment(id) {
 
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM payments WHERE id = ?').run(id)
+    db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('payments', id)
     recalculateBalance(payment.customer_id)
   })
 

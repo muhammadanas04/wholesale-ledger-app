@@ -66,27 +66,41 @@ async function runSyncCycle() {
 
     // ── 2. PUSH ──────────────────────────────────────────────────
     const pushData = {}
+    const pushedIds = {}
     for (const table of tables) {
-      pushData[table] = db.prepare(`SELECT * FROM ${table} WHERE synced = 0`).all()
+      const rows = db.prepare(`SELECT * FROM ${table} WHERE synced = 0`).all()
+      pushData[table] = rows
+      pushedIds[table] = rows.map(r => r.id)
     }
 
-    const hasLocalChanges = Object.values(pushData).some(rows => rows.length > 0)
-    
+    const pendingDeletes = db.prepare('SELECT * FROM deleted_log WHERE synced = 0').all()
+    const pendingDeleteIds = pendingDeletes.map(r => r.id)
+
+    const hasLocalChanges = Object.values(pushData).some(rows => rows.length > 0) || pendingDeletes.length > 0
+
     if (hasLocalChanges) {
       const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${secret}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(pushData)
+        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes })
       })
 
       if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)
 
       db.transaction(() => {
         for (const table of tables) {
-          db.prepare(`UPDATE ${table} SET synced = 1 WHERE synced = 0`).run()
+          const ids = pushedIds[table]
+          if (ids.length > 0) {
+            const placeholders = ids.map(() => '?').join(', ')
+            db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+          }
+        }
+        if (pendingDeleteIds.length > 0) {
+          const placeholders = pendingDeleteIds.map(() => '?').join(', ')
+          db.prepare(`UPDATE deleted_log SET synced = 1 WHERE id IN (${placeholders})`).run(...pendingDeleteIds)
         }
       })()
     }

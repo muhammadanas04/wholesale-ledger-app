@@ -64,3 +64,11 @@ CREATE TABLE IF NOT EXISTS payments (
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS deleted_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name TEXT NOT NULL,
+  row_id INTEGER NOT NULL,
+  deleted_at TEXT DEFAULT (datetime('now')),
+  synced INTEGER DEFAULT 0
+);

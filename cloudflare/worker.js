@@ -49,6 +49,15 @@ export default {
             `).bind(...columns.map(c => row[c])).run()
           }
         }
+
+        // Handle deletions sent by the app
+        const deletes = data._deletes || []
+        for (const entry of deletes) {
+          const { table_name, row_id } = entry
+          if (!tables.includes(table_name)) continue // safety guard
+          await env.DB.prepare(`DELETE FROM ${table_name} WHERE id = ?`).bind(row_id).run()
+        }
+
         return new Response(JSON.stringify({ success: true }), {
           headers: { 'Content-Type': 'application/json' },
         })

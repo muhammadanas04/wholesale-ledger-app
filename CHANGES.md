@@ -106,3 +106,10 @@
 - **Implemented Keyboard Shortcuts** — global `Ctrl+Key` navigation (Dashboard, Customers, etc.)
 - **Finalized Documentation** — wrote a user-friendly `README.md` guide
 - **Completed Infrastructure** — all features from the original plan and audit refinements are now implemented
+
+## Sync Bug Fixes (from sync-issues.md)
+
+- **Issue 1 — Deleted rows resurrect**: Added `deleted_log` table to local schema and D1. `deleteSale()` and `deletePayment()` now log deletions (`table_name`, `row_id`) inside their transactions. Push sends `_deletes` array; worker deletes matching rows from D1.
+- **Issue 2 — Rows permanently lost during push**: Push now captures row IDs before sending, then marks only those specific IDs as `synced = 1` (`WHERE id IN (...)`), avoiding a race where rows inserted mid-sync got silently dropped.
+- **Issue 3 — Worker ignored deletions**: `POST /push` handler reads `data._deletes` and deletes from D1 with a `tables.includes()` safety guard against malformed payloads.
+- **Deployed** updated worker + D1 schema (7 tables incl. `deleted_log`).
