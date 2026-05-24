@@ -7,6 +7,14 @@ files:
   - dist/**/*
   - electron/**/*
   - package.json
+publish:
+  provider: github
+  owner: muhammadanas04
+  repo: wholesale-ledger-app
+  releaseType: draft
+linux:
+  target:
+    - AppImage
 win:
   target:
     - target: nsis

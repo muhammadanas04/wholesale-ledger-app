@@ -2,25 +2,45 @@ import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Wallet, Trash2 } from 'lucide-react'
 import { paymentSchema } from '../lib/schemas'
+import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
+import Pagination from '../components/Pagination'
+import Skeleton from '../components/Skeleton'
+import ConfirmDialog from '../components/ConfirmDialog'
+
+const LIMIT = 10
 
 export default function Payments() {
   const [customers, setCustomers] = useState([])
   const [payments, setPayments] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
   const [customerId, setCustomerId] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  
+  // Confirm dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleteId, setDeleteId] = useState(null)
 
   async function load() {
-    setCustomers(await ipc('customers:list') || [])
-    setPayments(await ipc('payments:list') || [])
+    setLoading(true)
+    const offset = (page - 1) * LIMIT
+    const [custs, data, count] = await Promise.all([
+      ipc('customers:list', { limit: 1000 }), // Load more for select
+      ipc('payments:list', { limit: LIMIT, offset }),
+      ipc('payments:count')
+    ])
+    setCustomers(custs || [])
+    setPayments(data || [])
+    setTotal(Math.ceil((count || 0) / LIMIT))
+    setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
-
-  const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN')}`
+  useEffect(() => { load() }, [page])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -47,14 +67,21 @@ export default function Payments() {
     setDate(new Date().toISOString().slice(0, 10))
     setNotes('')
     setSaving(false)
+    setPage(1)
     load()
     toast.success('Payment recorded')
   }
 
-  async function handleDeletePayment(id) {
-    if (!confirm('Are you sure you want to delete this payment record? Customer balance will be reversed.')) return
-    await ipc('payments:delete', id)
+  async function confirmDelete(id) {
+    setDeleteId(id)
+    setConfirmOpen(true)
+  }
+
+  async function handleDelete() {
+    await ipc('payments:delete', deleteId)
+    setConfirmOpen(false)
     load()
+    toast.success('Payment deleted')
   }
 
   return (
@@ -64,16 +91,16 @@ export default function Payments() {
         <h1 className="text-2xl font-bold text-gray-800">Record Payment</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <select
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
             required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
           >
             <option value="">Select customer</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} (₹{(c.balance/100).toFixed(2)})</option>)}
           </select>
           <input
             type="date"
@@ -101,44 +128,64 @@ export default function Payments() {
         <button
           type="submit"
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm"
         >
           <Plus className="w-4 h-4" /> {saving ? 'Recording...' : 'Record Payment'}
         </button>
       </form>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-200 font-semibold text-gray-700 text-sm">Recent Payments</div>
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-              <th className="text-left px-4 py-2">Date</th>
-              <th className="text-left px-4 py-2">Customer</th>
-              <th className="text-right px-4 py-2">Amount</th>
-              <th className="text-left px-4 py-2">Notes</th>
-              <th className="text-center px-4 py-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((p) => (
-              <tr key={p.id} className="border-t border-gray-100">
-                <td className="px-4 py-2 text-gray-500">{p.date}</td>
-                <td className="px-4 py-2">{p.customer_name}</td>
-                <td className="px-4 py-2 text-right text-green-600 font-medium">{fmt(p.amount)}</td>
-                <td className="px-4 py-2 text-gray-500">{p.notes || '-'}</td>
-                <td className="px-4 py-2 text-center">
-                  <button onClick={() => handleDeletePayment(p.id)} className="p-1 text-red-400 hover:text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="px-5 py-3 border-b border-gray-200 font-bold text-gray-700 text-sm">Recent Payments</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="text-left px-5 py-3">Date</th>
+                <th className="text-left px-5 py-3">Customer</th>
+                <th className="text-right px-5 py-3">Amount</th>
+                <th className="text-left px-5 py-3">Notes</th>
+                <th className="text-center px-5 py-3">Action</th>
               </tr>
-            ))}
-            {payments.length === 0 && (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400">No payments recorded</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                [...Array(5)].map((_, i) => (
+                  <tr key={i}><td colSpan={5} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                ))
+              ) : (
+                <>
+                  {payments.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
+                      <td className="px-5 py-3 font-medium text-gray-800">{p.customer_name}</td>
+                      <td className="px-5 py-3 text-right text-green-600 font-bold">{formatCurrency(p.amount)}</td>
+                      <td className="px-5 py-3 text-gray-500 italic text-xs">{p.notes || '-'}</td>
+                      <td className="px-5 py-3 text-center">
+                        <button onClick={() => confirmDelete(p.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {payments.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
+                  )}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination current={page} total={total} onPageChange={setPage} />
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Delete Payment?"
+        message="This will reverse the payment and increase the customer's outstanding balance. Are you sure?"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+        confirmText="Delete Record"
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
+const { autoUpdater } = require('electron-updater')
 const { initDatabase } = require('./db')
 const { registerIpcHandlers } = require('./ipc')
 const { startSync } = require('./sync')
@@ -25,7 +26,32 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+
+  // Auto-updater events
+  try {
+    autoUpdater.on('update-available', () => {
+      mainWindow.webContents.send('app:update-available')
+    })
+
+    autoUpdater.on('update-downloaded', () => {
+      mainWindow.webContents.send('app:update-downloaded')
+    })
+
+    if (app.isPackaged && process.env.GH_TOKEN) {
+      autoUpdater.checkForUpdatesAndNotify()
+    }
+  } catch (e) {
+    console.log('Auto-updater not configured:', e.message)
+  }
 }
+
+ipcMain.on('app:restart-and-install', () => {
+  try {
+    autoUpdater.quitAndInstall()
+  } catch (e) {
+    console.log('Auto-updater quit failed:', e.message)
+  }
+})
 
 app.whenReady().then(() => {
   initDatabase()

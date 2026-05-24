@@ -112,8 +112,23 @@ function migrate() {
 
 // ── Customers ──────────────────────────────────────────────────────
 
-function getCustomers() {
-  return db.prepare('SELECT * FROM customers ORDER BY name ASC').all()
+function getCustomers({ limit = 50, offset = 0, sortBy = 'name', order = 'ASC' } = {}) {
+  const safeSort = ['name', 'balance', 'created_at'].includes(sortBy) ? sortBy : 'name'
+  const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+  
+  return db.prepare(`
+    SELECT * FROM customers 
+    ORDER BY ${safeSort} ${safeOrder}
+    LIMIT ? OFFSET ?
+  `).all(limit, offset)
+}
+
+function getCustomersCount(search = '') {
+  if (search) {
+    const like = `%${search}%`
+    return db.prepare('SELECT COUNT(*) AS count FROM customers WHERE name LIKE ? OR phone LIKE ?').get(like, like).count
+  }
+  return db.prepare('SELECT COUNT(*) AS count FROM customers').get().count
 }
 
 function getCustomer(id) {
@@ -138,13 +153,17 @@ function updateCustomer(id, { name, phone, address }) {
   return getCustomer(id)
 }
 
-function searchCustomers(query) {
+function searchCustomers(query, { limit = 50, offset = 0, sortBy = 'name', order = 'ASC' } = {}) {
   const like = `%${query}%`
+  const safeSort = ['name', 'balance', 'created_at'].includes(sortBy) ? sortBy : 'name'
+  const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+
   return db.prepare(`
     SELECT * FROM customers
     WHERE name LIKE ? OR phone LIKE ?
-    ORDER BY name ASC
-  `).all(like, like)
+    ORDER BY ${safeSort} ${safeOrder}
+    LIMIT ? OFFSET ?
+  `).all(like, like, limit, offset)
 }
 
 function recalculateBalance(customerId) {
@@ -165,8 +184,19 @@ function recalculateBalance(customerId) {
 
 // ── Products ───────────────────────────────────────────────────────
 
-function getProducts() {
-  return db.prepare('SELECT * FROM products ORDER BY name ASC').all()
+function getProducts({ limit = 50, offset = 0, sortBy = 'name', order = 'ASC' } = {}) {
+  const safeSort = ['name', 'current_stock', 'reorder_level'].includes(sortBy) ? sortBy : 'name'
+  const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+
+  return db.prepare(`
+    SELECT * FROM products 
+    ORDER BY ${safeSort} ${safeOrder}
+    LIMIT ? OFFSET ?
+  `).all(limit, offset)
+}
+
+function getProductsCount() {
+  return db.prepare('SELECT COUNT(*) AS count FROM products').get().count
 }
 
 function getProduct(id) {
@@ -199,13 +229,18 @@ function getLowStockProducts() {
 
 // ── Stock Purchases ────────────────────────────────────────────────
 
-function getStockPurchases() {
+function getStockPurchases({ limit = 50, offset = 0 } = {}) {
   return db.prepare(`
     SELECT sp.*, p.name AS product_name, p.unit
     FROM stock_purchases sp
     JOIN products p ON p.id = sp.product_id
     ORDER BY sp.date DESC
-  `).all()
+    LIMIT ? OFFSET ?
+  `).all(limit, offset)
+}
+
+function getStockPurchasesCount() {
+  return db.prepare('SELECT COUNT(*) AS count FROM stock_purchases').get().count
 }
 
 function getStockPurchase(id) {
@@ -241,13 +276,18 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date }) {
 
 // ── Sales ──────────────────────────────────────────────────────────
 
-function getSales() {
+function getSales({ limit = 50, offset = 0 } = {}) {
   return db.prepare(`
     SELECT s.*, c.name AS customer_name
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     ORDER BY s.date DESC
-  `).all()
+    LIMIT ? OFFSET ?
+  `).all(limit, offset)
+}
+
+function getSalesCount() {
+  return db.prepare('SELECT COUNT(*) AS count FROM sales').get().count
 }
 
 function getSale(id) {
@@ -333,13 +373,18 @@ function deleteSale(id) {
 
 // ── Payments ───────────────────────────────────────────────────────
 
-function getPayments() {
+function getPayments({ limit = 50, offset = 0 } = {}) {
   return db.prepare(`
     SELECT p.*, c.name AS customer_name
     FROM payments p
     JOIN customers c ON c.id = p.customer_id
     ORDER BY p.date DESC
-  `).all()
+    LIMIT ? OFFSET ?
+  `).all(limit, offset)
+}
+
+function getPaymentsCount() {
+  return db.prepare('SELECT COUNT(*) AS count FROM payments').get().count
 }
 
 function getPaymentsByCustomer(customerId) {
@@ -381,6 +426,7 @@ function addPayment({ customer_id, amount, date, notes }) {
     WHERE p.id = ?
   `).get(id)
 }
+
 
 // ── Reports (helpers) ──────────────────────────────────────────────
 

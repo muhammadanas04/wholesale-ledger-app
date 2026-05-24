@@ -17,32 +17,37 @@ const wrap = (fn) => async (event, ...args) => {
 
 function registerIpcHandlers() {
   // ── Customers ──────────────────────────────────────────────────
-  ipcMain.handle('customers:list', wrap(() => db.getCustomers()))
+  ipcMain.handle('customers:list', wrap((_e, args) => db.getCustomers(args)))
+  ipcMain.handle('customers:count', wrap((_e, search) => db.getCustomersCount(search)))
   ipcMain.handle('customers:get', wrap((_e, id) => db.getCustomer(id)))
   ipcMain.handle('customers:add', wrap((_e, data) => db.addCustomer(data)))
   ipcMain.handle('customers:update', wrap((_e, id, data) => db.updateCustomer(id, data)))
-  ipcMain.handle('customers:search', wrap((_e, query) => db.searchCustomers(query)))
+  ipcMain.handle('customers:search', wrap((_e, query, args) => db.searchCustomers(query, args)))
 
   // ── Products ───────────────────────────────────────────────────
-  ipcMain.handle('products:list', wrap(() => db.getProducts()))
+  ipcMain.handle('products:list', wrap((_e, args) => db.getProducts(args)))
+  ipcMain.handle('products:count', wrap(() => db.getProductsCount()))
   ipcMain.handle('products:get', wrap((_e, id) => db.getProduct(id)))
   ipcMain.handle('products:add', wrap((_e, data) => db.addProduct(data)))
   ipcMain.handle('products:update', wrap((_e, id, data) => db.updateProduct(id, data)))
   ipcMain.handle('products:low-stock', wrap(() => db.getLowStockProducts()))
 
   // ── Stock Purchases ────────────────────────────────────────────
-  ipcMain.handle('stock-purchases:list', wrap(() => db.getStockPurchases()))
+  ipcMain.handle('stock-purchases:list', wrap((_e, args) => db.getStockPurchases(args)))
+  ipcMain.handle('stock-purchases:count', wrap(() => db.getStockPurchasesCount()))
   ipcMain.handle('stock-purchases:get', wrap((_e, id) => db.getStockPurchase(id)))
   ipcMain.handle('stock-purchases:add', wrap((_e, data) => db.addStockPurchase(data)))
 
   // ── Sales ──────────────────────────────────────────────────────
-  ipcMain.handle('sales:list', wrap(() => db.getSales()))
+  ipcMain.handle('sales:list', wrap((_e, args) => db.getSales(args)))
+  ipcMain.handle('sales:count', wrap(() => db.getSalesCount()))
   ipcMain.handle('sales:get', wrap((_e, id) => db.getSale(id)))
   ipcMain.handle('sales:add', wrap((_e, data) => db.addSale(data)))
   ipcMain.handle('sales:delete', wrap((_e, id) => db.deleteSale(id)))
 
   // ── Payments ───────────────────────────────────────────────────
-  ipcMain.handle('payments:list', wrap(() => db.getPayments()))
+  ipcMain.handle('payments:list', wrap((_e, args) => db.getPayments(args)))
+  ipcMain.handle('payments:count', wrap(() => db.getPaymentsCount()))
   ipcMain.handle('payments:by-customer', wrap((_e, customerId) => db.getPaymentsByCustomer(customerId)))
   ipcMain.handle('payments:add', wrap((_e, data) => db.addPayment(data)))
   ipcMain.handle('payments:delete', wrap((_e, id) => db.deletePayment(id)))

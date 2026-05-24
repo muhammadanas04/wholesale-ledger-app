@@ -3,35 +3,51 @@ import { Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
 import { Search, Plus, Phone, MapPin } from 'lucide-react'
 import { customerSchema } from '../lib/schemas'
+import { formatCurrency, formatPhone } from '../lib/formatters'
 import { toast } from 'sonner'
+import Pagination from '../components/Pagination'
+import Skeleton from '../components/Skeleton'
+
+const LIMIT = 10
 
 export default function Customers() {
   const [customers, setCustomers] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('name-asc')
+  const [sortBy, setSortBy] = useState('name')
+  const [order, setOrder] = useState('ASC')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', address: '' })
 
   async function load() {
-    let data = search
-      ? await ipc('customers:search', search)
-      : await ipc('customers:list')
+    setLoading(true)
+    const offset = (page - 1) * LIMIT
     
-    if (!data) return setCustomers([])
-
-    const sorted = [...data].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name)
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name)
-      if (sortBy === 'balance-desc') return b.balance - a.balance
-      if (sortBy === 'balance-asc') return a.balance - b.balance
-      return 0
-    })
-
-    setCustomers(sorted)
+    const [data, count] = await Promise.all([
+      search 
+        ? ipc('customers:search', search, { limit: LIMIT, offset, sortBy, order })
+        : ipc('customers:list', { limit: LIMIT, offset, sortBy, order }),
+      ipc('customers:count', search)
+    ])
+    
+    setCustomers(data || [])
+    setTotal(Math.ceil((count || 0) / LIMIT))
+    setLoading(false)
   }
 
-  useEffect(() => { load() }, [search, sortBy])
+  useEffect(() => { load() }, [page, search, sortBy, order])
+
+  // Reset page on search/sort
+  useEffect(() => { setPage(1) }, [search, sortBy, order])
+
+  function handleSort(val) {
+    const [s, o] = val.split('-')
+    setSortBy(s)
+    setOrder(o.toUpperCase())
+  }
 
   function openAdd() {
     setEditId(null)
@@ -64,8 +80,6 @@ export default function Customers() {
     load()
   }
 
-  const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN')}`
-
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -87,19 +101,20 @@ export default function Customers() {
           />
         </div>
         <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
+          value={`${sortBy}-${order.toLowerCase()}`}
+          onChange={(e) => handleSort(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="name-asc">Name (A-Z)</option>
           <option value="name-desc">Name (Z-A)</option>
           <option value="balance-desc">Balance (High-Low)</option>
           <option value="balance-asc">Balance (Low-High)</option>
+          <option value="created_at-desc">Newest First</option>
         </select>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
           <input
             placeholder="Name *"
             value={form.name}
@@ -131,25 +146,32 @@ export default function Customers() {
       )}
 
       <div className="space-y-2">
-        {customers.map((c) => (
-          <Link key={c.id} to={`/customers/${c.id}`} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between hover:border-blue-200 transition-colors">
-            <div>
-              <p className="font-medium text-gray-800">{c.name}</p>
-              <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{c.phone}</span>}
-                {c.address && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.address}</span>}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className={`font-semibold ${c.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                {fmt(c.balance)}
-              </span>
-              <button onClick={(e) => { e.preventDefault(); openEdit(c) }} className="text-sm text-blue-600 hover:underline">Edit</button>
-            </div>
-          </Link>
-        ))}
-        {customers.length === 0 && (
-          <p className="text-gray-400 text-sm text-center py-8">No customers found</p>
+        {loading ? (
+          [...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
+        ) : (
+          <>
+            {customers.map((c) => (
+              <Link key={c.id} to={`/customers/${c.id}`} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between hover:border-blue-200 transition-colors shadow-sm">
+                <div>
+                  <p className="font-bold text-gray-800">{c.name}</p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                    {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{formatPhone(c.phone)}</span>}
+                    {c.address && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.address}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className={`font-bold ${c.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                    {formatCurrency(c.balance)}
+                  </span>
+                  <button onClick={(e) => { e.preventDefault(); openEdit(c) }} className="text-sm text-blue-600 font-bold hover:underline">Edit</button>
+                </div>
+              </Link>
+            ))}
+            {customers.length === 0 && (
+              <p className="text-gray-400 text-sm text-center py-8 bg-white border border-dashed border-gray-200 rounded-xl">No customers found</p>
+            )}
+            <Pagination current={page} total={total} onPageChange={setPage} />
+          </>
         )}
       </div>
     </div>

@@ -3,31 +3,47 @@ import { ipc } from '../lib/ipc'
 import { Plus, Package } from 'lucide-react'
 import { productSchema } from '../lib/schemas'
 import { toast } from 'sonner'
+import Pagination from '../components/Pagination'
+import Skeleton from '../components/Skeleton'
 
+const LIMIT = 12
 const units = ['kg', 'g', 'box', 'piece', 'litre', 'bottle', 'bag', 'dozen']
 
 export default function Products() {
   const [products, setProducts] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [sortBy, setSortBy] = useState('name-asc')
+  const [sortBy, setSortBy] = useState('name')
+  const [order, setOrder] = useState('ASC')
   const [form, setForm] = useState({ name: '', unit: 'kg', reorder_level: '' })
 
   async function load() {
-    const data = await ipc('products:list')
-    if (!data) return setProducts([])
-
-    const sorted = [...data].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name)
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name)
-      if (sortBy === 'stock-desc') return b.current_stock - a.current_stock
-      if (sortBy === 'stock-asc') return a.current_stock - b.current_stock
-      return 0
-    })
-    setProducts(sorted)
+    setLoading(true)
+    const offset = (page - 1) * LIMIT
+    
+    const [data, count] = await Promise.all([
+      ipc('products:list', { limit: LIMIT, offset, sortBy, order }),
+      ipc('products:count')
+    ])
+    
+    setProducts(data || [])
+    setTotal(Math.ceil((count || 0) / LIMIT))
+    setLoading(false)
   }
 
-  useEffect(() => { load() }, [sortBy])
+  useEffect(() => { load() }, [page, sortBy, order])
+
+  // Reset page on sort
+  useEffect(() => { setPage(1) }, [sortBy, order])
+
+  function handleSort(val) {
+    const [s, o] = val.split('-')
+    setSortBy(s)
+    setOrder(o.toUpperCase())
+  }
 
   function openAdd() {
     setEditId(null)
@@ -67,14 +83,14 @@ export default function Products() {
         <h1 className="text-2xl font-bold text-gray-800">Products</h1>
         <div className="flex items-center gap-2">
           <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            value={`${sortBy}-${order.toLowerCase()}`}
+            onChange={(e) => handleSort(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="name-asc">Name (A-Z)</option>
             <option value="name-desc">Name (Z-A)</option>
-            <option value="stock-desc">Stock (High-Low)</option>
-            <option value="stock-asc">Stock (Low-High)</option>
+            <option value="current_stock-desc">Stock (High-Low)</option>
+            <option value="current_stock-asc">Stock (Low-High)</option>
           </select>
           <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             <Plus className="w-4 h-4" /> Add Product
@@ -83,7 +99,7 @@ export default function Products() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
           <input
             placeholder="Product name *"
             value={form.name}
@@ -117,35 +133,48 @@ export default function Products() {
         </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {products.map((p) => {
-          const low = p.current_stock < p.reorder_level
-          return (
-            <div key={p.id} className={`bg-white border rounded-xl p-4 ${low ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-800">{p.name}</p>
-                    <p className="text-xs text-gray-400">Unit: {p.unit}</p>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {products.map((p) => {
+              const low = p.current_stock < p.reorder_level
+              return (
+                <div key={p.id} className={`bg-white border rounded-xl p-4 shadow-sm transition-all hover:border-blue-200 ${low ? 'border-red-200 bg-red-50/50' : 'border-gray-200'}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${low ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-800">{p.name}</p>
+                        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Unit: {p.unit}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => openEdit(p)} className="text-xs text-blue-600 font-bold hover:underline">Edit</button>
                   </div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-xl font-black text-gray-800 tracking-tight">
+                      {p.current_stock} <span className="text-xs font-bold text-gray-400 uppercase">{p.unit}</span>
+                    </span>
+                    {low && <span className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-black uppercase rounded-full">Low Stock</span>}
+                  </div>
+                  {p.reorder_level > 0 && (
+                    <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-tight italic">Alert below: {p.reorder_level} {p.unit}</p>
+                  )}
                 </div>
-                <button onClick={() => openEdit(p)} className="text-xs text-blue-600 hover:underline">Edit</button>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-lg font-bold text-gray-800">{p.current_stock} <span className="text-sm font-normal text-gray-400">{p.unit}</span></span>
-                {low && <span className="text-xs text-red-600 font-medium">Low stock!</span>}
-              </div>
-              {p.reorder_level > 0 && (
-                <p className="text-xs text-gray-400 mt-1">Reorder at: {p.reorder_level} {p.unit}</p>
-              )}
-            </div>
-          )
-        })}
-        {products.length === 0 && (
-          <p className="text-gray-400 text-sm col-span-full text-center py-8">No products yet</p>
-        )}
-      </div>
+              )
+            })}
+            {products.length === 0 && (
+              <p className="text-gray-400 text-sm col-span-full text-center py-8 bg-white border border-dashed border-gray-200 rounded-xl">No products yet</p>
+            )}
+          </div>
+          <Pagination current={page} total={total} onPageChange={setPage} />
+        </>
+      )}
     </div>
   )
 }
