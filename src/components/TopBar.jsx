@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Wifi, WifiOff, Clock, RefreshCw, ArrowUpCircle } from 'lucide-react'
+import { Wifi, WifiOff, Clock, RefreshCw, ArrowUpCircle, AlertCircle } from 'lucide-react'
 import { ipc } from '../lib/ipc'
+import { toast } from 'sonner'
 
 export default function TopBar() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [syncStatus, setSyncStatus] = useState('online')
   const [lastSync, setLastSync] = useState(null)
+  const [syncError, setSyncError] = useState(null)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
 
@@ -18,6 +20,12 @@ export default function TopBar() {
     const syncHandler = (event, data) => {
       setSyncStatus(data.status)
       if (data.lastSync) setLastSync(data.lastSync)
+      if (data.status === 'error') {
+        setSyncError(data.error)
+        toast.error(`Sync failed: ${data.error}`)
+      } else {
+        setSyncError(null)
+      }
     }
 
     const updateAvailableHandler = () => setUpdateAvailable(true)
@@ -32,7 +40,6 @@ export default function TopBar() {
       window.electronAPI.on('app:update-downloaded', updateDownloadedHandler)
     }
 
-    // Initial last sync check
     ipc('meta:get', 'last_sync_time').then(setLastSync)
 
     return () => {
@@ -40,6 +47,12 @@ export default function TopBar() {
       window.removeEventListener('offline', off)
     }
   }, [])
+
+  async function handleSync() {
+    setSyncStatus('syncing')
+    setSyncError(null)
+    await ipc('sync:run')
+  }
 
   function handleRestart() {
     if (window.electronAPI) {
@@ -50,6 +63,11 @@ export default function TopBar() {
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
       <div className="flex items-center gap-4">
+        {syncError && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-medium">
+            <AlertCircle className="w-3 h-3" /> {syncError}
+          </div>
+        )}
         {updateAvailable && (
           <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold animate-pulse">
             <ArrowUpCircle className="w-3 h-3" /> Update Available
@@ -87,7 +105,7 @@ export default function TopBar() {
         </div>
 
         <button 
-          onClick={() => ipc('sync:run')}
+          onClick={handleSync}
           disabled={syncStatus === 'syncing' || !isOnline}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
           title="Sync Now"

@@ -2,6 +2,7 @@ const { getDatabase, getMeta, setMeta } = require('./db')
 const { BrowserWindow } = require('electron')
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const FETCH_TIMEOUT_MS = 10000 // 10 seconds
 
 let isSyncing = false
 let syncTimeout
@@ -10,8 +11,18 @@ async function startSync() {
   runSyncCycle()
 }
 
+function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer))
+}
+
 async function runSyncCycle() {
-  if (isSyncing) return
+  if (isSyncing) {
+    notifyRenderer({ status: 'error', error: 'Sync already in progress — click again after it finishes' })
+    return
+  }
   isSyncing = true
   notifyRenderer({ status: 'syncing' })
 
@@ -22,11 +33,11 @@ async function runSyncCycle() {
     const secret = getMeta('sync_token')
 
     if (!workerUrl || !secret) {
-      throw new Error('Sync configuration missing (Worker URL or Token)')
+      throw new Error('Sync not configured — set Worker URL and Token in Settings')
     }
 
     // ── 1. PULL ──────────────────────────────────────────────────
-    const pullResponse = await fetch(`${workerUrl}/pull?since=${encodeURIComponent(lastSync)}`, {
+    const pullResponse = await fetchWithTimeout(`${workerUrl}/pull?since=${encodeURIComponent(lastSync)}`, {
       headers: { 'Authorization': `Bearer ${secret}` }
     })
 
@@ -62,7 +73,7 @@ async function runSyncCycle() {
     const hasLocalChanges = Object.values(pushData).some(rows => rows.length > 0)
     
     if (hasLocalChanges) {
-      const pushResponse = await fetch(`${workerUrl}/push`, {
+      const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${secret}`,
@@ -73,7 +84,6 @@ async function runSyncCycle() {
 
       if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)
 
-      // Mark as synced
       db.transaction(() => {
         for (const table of tables) {
           db.prepare(`UPDATE ${table} SET synced = 1 WHERE synced = 0`).run()
@@ -86,8 +96,13 @@ async function runSyncCycle() {
     notifyRenderer({ status: 'online', lastSync: now })
 
   } catch (error) {
-    console.error('Sync Error:', error.message)
-    notifyRenderer({ status: 'error', error: error.message })
+    if (error.name === 'AbortError') {
+      console.error('Sync Error: Request timed out')
+      notifyRenderer({ status: 'error', error: 'Sync timed out — check your network or Worker URL' })
+    } else {
+      console.error('Sync Error:', error.message)
+      notifyRenderer({ status: 'error', error: error.message })
+    }
   } finally {
     isSyncing = false
     syncTimeout = setTimeout(runSyncCycle, SYNC_INTERVAL_MS)
