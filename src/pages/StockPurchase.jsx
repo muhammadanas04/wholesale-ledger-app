@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Trash2 } from 'lucide-react'
+import { stockPurchaseSchema } from '../lib/schemas'
+import { toast } from 'sonner'
 
 export default function StockPurchase() {
   const [products, setProducts] = useState([])
@@ -18,15 +20,27 @@ export default function StockPurchase() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await ipc('stock-purchases:add', {
+
+    const purchaseData = {
       product_id: Number(form.product_id),
       qty: Number(form.qty),
-      cost_price: Math.round(Number(form.cost_price) * 100),
-      supplier: form.supplier || null,
+      cost_price: Number(form.cost_price),
+      supplier: form.supplier || '',
       date: form.date,
+    }
+
+    const result = stockPurchaseSchema.safeParse(purchaseData)
+    if (!result.success) {
+      return toast.error(result.error.errors[0].message)
+    }
+
+    await ipc('stock-purchases:add', {
+      ...purchaseData,
+      cost_price: Math.round(purchaseData.cost_price * 100),
     })
     setForm({ product_id: '', qty: '', cost_price: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
     load()
+    toast.success('Stock purchase recorded')
   }
 
   return (

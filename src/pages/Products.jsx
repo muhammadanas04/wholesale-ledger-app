@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Package } from 'lucide-react'
+import { productSchema } from '../lib/schemas'
+import { toast } from 'sonner'
 
 const units = ['kg', 'g', 'box', 'piece', 'litre', 'bottle', 'bag', 'dozen']
 
@@ -8,14 +10,24 @@ export default function Products() {
   const [products, setProducts] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
+  const [sortBy, setSortBy] = useState('name-asc')
   const [form, setForm] = useState({ name: '', unit: 'kg', reorder_level: '' })
 
   async function load() {
     const data = await ipc('products:list')
-    setProducts(data || [])
+    if (!data) return setProducts([])
+
+    const sorted = [...data].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name)
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name)
+      if (sortBy === 'stock-desc') return b.current_stock - a.current_stock
+      if (sortBy === 'stock-asc') return a.current_stock - b.current_stock
+      return 0
+    })
+    setProducts(sorted)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [sortBy])
 
   function openAdd() {
     setEditId(null)
@@ -32,10 +44,18 @@ export default function Products() {
   async function handleSave(e) {
     e.preventDefault()
     const data = { name: form.name, unit: form.unit, reorder_level: Number(form.reorder_level) || 0 }
+    
+    const result = productSchema.safeParse(data)
+    if (!result.success) {
+      return toast.error(result.error.errors[0].message)
+    }
+
     if (editId) {
       await ipc('products:update', editId, data)
+      toast.success('Product updated')
     } else {
       await ipc('products:add', data)
+      toast.success('Product added')
     }
     setShowForm(false)
     load()
@@ -45,9 +65,21 @@ export default function Products() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Products</h1>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="stock-desc">Stock (High-Low)</option>
+            <option value="stock-asc">Stock (Low-High)</option>
+          </select>
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       {showForm && (

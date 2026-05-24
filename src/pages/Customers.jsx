@@ -2,22 +2,36 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
 import { Search, Plus, Phone, MapPin } from 'lucide-react'
+import { customerSchema } from '../lib/schemas'
+import { toast } from 'sonner'
 
 export default function Customers() {
   const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name-asc')
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', address: '' })
 
   async function load() {
-    const data = search
+    let data = search
       ? await ipc('customers:search', search)
       : await ipc('customers:list')
-    setCustomers(data || [])
+    
+    if (!data) return setCustomers([])
+
+    const sorted = [...data].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name)
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name)
+      if (sortBy === 'balance-desc') return b.balance - a.balance
+      if (sortBy === 'balance-asc') return a.balance - b.balance
+      return 0
+    })
+
+    setCustomers(sorted)
   }
 
-  useEffect(() => { load() }, [search])
+  useEffect(() => { load() }, [search, sortBy])
 
   function openAdd() {
     setEditId(null)
@@ -33,10 +47,18 @@ export default function Customers() {
 
   async function handleSave(e) {
     e.preventDefault()
+
+    const result = customerSchema.safeParse(form)
+    if (!result.success) {
+      return toast.error(result.error.errors[0].message)
+    }
+
     if (editId) {
       await ipc('customers:update', editId, form)
+      toast.success('Customer updated')
     } else {
       await ipc('customers:add', form)
+      toast.success('Customer added')
     }
     setShowForm(false)
     load()
@@ -53,15 +75,27 @@ export default function Customers() {
         </button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by name or phone..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name or phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="name-asc">Name (A-Z)</option>
+          <option value="name-desc">Name (Z-A)</option>
+          <option value="balance-desc">Balance (High-Low)</option>
+          <option value="balance-asc">Balance (Low-High)</option>
+        </select>
       </div>
 
       {showForm && (

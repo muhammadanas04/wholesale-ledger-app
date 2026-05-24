@@ -5,13 +5,22 @@ const { app } = require('electron')
 let db
 
 const SCHEMA_VERSION = 1
-
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
+
   migrate()
+
+  // Set defaults for sync if not present
+  if (!getMeta('sync_token')) {
+    setMeta('sync_token', 'wholesale-sync-token-2026')
+  }
+  if (!getMeta('worker_url')) {
+    setMeta('worker_url', 'https://wholesale-sync.muhammadanas.workers.dev')
+  }
+
   return db
 }
 
@@ -433,7 +442,6 @@ function getStockMovements(startDate, endDate) {
     qty_sold: soldMap[p.id] || 0,
   }))
 }
-
 function getInventoryValue() {
   const row = db.prepare(`
     SELECT COALESCE(SUM(sp.qty * sp.cost_price), 0) AS total_value
@@ -445,6 +453,21 @@ function getInventoryValue() {
     WHERE sp.rn = 1
   `).get()
   return row ? row.total_value : 0
+}
+
+// ── Metadata ───────────────────────────────────────────────────────
+
+function getMeta(key) {
+  const row = db.prepare('SELECT value FROM _meta WHERE key = ?').get(key)
+  return row ? row.value : null
+}
+
+function setMeta(key, value) {
+  db.prepare(`
+    INSERT INTO _meta (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, String(value))
 }
 
 module.exports = {
@@ -471,9 +494,13 @@ module.exports = {
   getPayments,
   getPaymentsByCustomer,
   addPayment,
+  deletePayment,
   getSalesInRange,
   getTopProducts,
   getTopCustomers,
   getStockMovements,
   getInventoryValue,
+  getMeta,
+  setMeta,
 }
+

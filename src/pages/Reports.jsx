@@ -9,6 +9,7 @@ export default function Reports() {
     start: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10),
     end: new Date().toISOString().slice(0, 10),
   })
+  const [shopName, setShopName] = useState('Wholesale Ledger')
   const [summary, setSummary] = useState({
     totalSales: 0,
     topProducts: [],
@@ -18,15 +19,17 @@ export default function Reports() {
   })
 
   async function load() {
-    const [sales, products, customers, inv, movements] = await Promise.all([
+    const [sales, products, customers, inv, movements, name] = await Promise.all([
       ipc('reports:sales-range', dates.start, dates.end),
       ipc('reports:top-products', dates.start, dates.end),
       ipc('reports:top-customers', dates.start, dates.end),
       ipc('reports:inventory-value'),
       ipc('reports:stock-movements', dates.start, dates.end),
+      ipc('meta:get', 'shop_name'),
     ])
 
     const total = (sales || []).reduce((sum, s) => sum + s.total_amount, 0)
+    if (name) setShopName(name)
 
     setSummary({
       totalSales: total,
@@ -45,8 +48,9 @@ export default function Reports() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="print-only mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Business Report</h1>
+      <div className="print-only mb-6 border-b pb-4">
+        <h1 className="text-3xl font-bold text-gray-800">{shopName}</h1>
+        <p className="text-xl font-medium mt-1">Business Report</p>
         <p className="text-gray-500">Period: {dates.start} to {dates.end}</p>
       </div>
 

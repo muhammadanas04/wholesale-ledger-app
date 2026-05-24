@@ -76,3 +76,25 @@
 - **Enhanced `Reports.jsx`** — added Stock Movements table and 'Download PDF' button
 - **Updated `CustomerDetail.jsx`** — added 'Delete Sale' functionality and 'Print Ledger' button with print-only headers
 - **Finished Phase 4 Polish** — added `deletePayment` to `db.js`, registered IPC handler, and added delete button to `Payments.jsx`
+
+## Improvements & Refinements (from IMPROVE.md)
+
+- **Implemented Zod Schema Validation** — added type-safe validation for all forms (Customers, Products, Sales, Payments, Stock Purchases) to prevent malformed data entry
+- **Standardized IPC Error Handling** — implemented a `wrap` helper in `electron/ipc.js` and updated `src/lib/ipc.js` to catch and report errors via toasts
+- **Added Toast Notifications** — integrated `sonner` for rich-color interactive feedback across the app
+- **Enhanced Secret Management** — moved sync worker URL and secret token from hardcoded strings to database-managed metadata (configurable via Settings)
+- **Hardened Database Initialization** — ensured default metadata values are set on first run and improved migration reliability
+
+## Phase 6 — Cloudflare D1 Sync
+
+- **Implemented Cloudflare Worker API** (`cloudflare/worker.js`) with pull/push endpoints and Bearer token auth
+- **Created Sync Engine** (`electron/sync.js`) for bidirectional sync with last-write-wins conflict resolution
+- **Integrated Sync into UI** — added real-time status indicators and manual sync button to `TopBar.jsx`
+- **Added Metadata Helpers** to `db.js` to track `last_sync_time`
+
+## Phase 7 — Polish & Deployment
+
+- **Created Settings Screen** (`src/pages/Settings.jsx`) — allows configuration of Shop Name, Currency, and Sync credentials
+- **Implemented Keyboard Shortcuts** — global `Ctrl+Key` navigation (Dashboard, Customers, etc.)
+- **Finalized Documentation** — wrote a user-friendly `README.md` guide
+- **Completed Infrastructure** — all features from the original plan and audit refinements are now implemented

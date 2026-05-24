@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Wallet, Trash2 } from 'lucide-react'
+import { paymentSchema } from '../lib/schemas'
+import { toast } from 'sonner'
 
 export default function Payments() {
   const [customers, setCustomers] = useState([])
@@ -22,14 +24,23 @@ export default function Payments() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!customerId || !amount) return
+    
+    const paymentData = {
+      customer_id: Number(customerId),
+      amount: Number(amount),
+      date,
+      notes: notes || null,
+    }
+
+    const result = paymentSchema.safeParse(paymentData)
+    if (!result.success) {
+      return toast.error(result.error.errors[0].message)
+    }
 
     setSaving(true)
     await ipc('payments:add', {
-      customer_id: Number(customerId),
-      amount: Math.round(Number(amount) * 100),
-      date,
-      notes: notes || null,
+      ...paymentData,
+      amount: Math.round(paymentData.amount * 100),
     })
     setCustomerId('')
     setAmount('')
@@ -37,6 +48,7 @@ export default function Payments() {
     setNotes('')
     setSaving(false)
     load()
+    toast.success('Payment recorded')
   }
 
   async function handleDeletePayment(id) {

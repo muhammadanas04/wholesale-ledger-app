@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { saleSchema } from '../lib/schemas'
+import { toast } from 'sonner'
 
 export default function NewSale() {
   const [customers, setCustomers] = useState([])
@@ -43,19 +45,34 @@ export default function NewSale() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!customerId || items.some((i) => !i.product_id || !i.qty || !i.unit_price)) return
-
-    setSaving(true)
-    await ipc('sales:add', {
+    
+    const saleData = {
       customer_id: Number(customerId),
       date,
       notes: notes || null,
       items: items.map((i) => ({
         product_id: Number(i.product_id),
         qty: Number(i.qty),
-        unit_price: Math.round(Number(i.unit_price) * 100),
+        unit_price: Number(i.unit_price),
       })),
-    })
+    }
+
+    const result = saleSchema.safeParse(saleData)
+    if (!result.success) {
+      return toast.error(result.error.errors[0].message)
+    }
+
+    setSaving(true)
+    const finalData = {
+      ...saleData,
+      items: saleData.items.map(i => ({
+        ...i,
+        unit_price: Math.round(i.unit_price * 100)
+      }))
+    }
+
+    await ipc('sales:add', finalData)
+    toast.success('Sale saved successfully')
     setCustomerId('')
     setDate(new Date().toISOString().slice(0, 10))
     setNotes('')

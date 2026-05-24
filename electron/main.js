@@ -2,6 +2,7 @@ const { app, BrowserWindow } = require('electron')
 const path = require('path')
 const { initDatabase } = require('./db')
 const { registerIpcHandlers } = require('./ipc')
+const { startSync } = require('./sync')
 
 let mainWindow
 
@@ -30,6 +31,7 @@ app.whenReady().then(() => {
   initDatabase()
   registerIpcHandlers()
   createWindow()
+  startSync()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

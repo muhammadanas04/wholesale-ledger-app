@@ -1,0 +1,8 @@
+name = "wholesale-sync"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "wholesale-personal"
+database_id = "8b64feac-f3a4-4242-8f57-986abf38c8b0"

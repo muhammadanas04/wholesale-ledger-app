@@ -1,5 +1,65 @@
 export default {
   async fetch(request, env) {
-    return new Response('Wholesale Ledger Sync API — placeholder', { status: 200 })
+    const url = new URL(request.url)
+    const auth = request.headers.get('Authorization')
+    const SECRET = env.SYNC_SECRET || 'wholesale-sync-token-2026'
+
+    if (auth !== `Bearer ${SECRET}`) {
+      return new Response('Unauthorized', { status: 401 })
+    }
+
+    // ── GET /pull ────────────────────────────────────────────────
+    if (request.method === 'GET' && url.pathname === '/pull') {
+      const since = url.searchParams.get('since') || '1970-01-01 00:00:00'
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
+      const results = {}
+
+      for (const table of tables) {
+        const { results: rows } = await env.DB.prepare(
+          `SELECT * FROM ${table} WHERE updated_at > ?`
+        ).bind(since).all()
+        results[table] = rows
+      }
+
+      return new Response(JSON.stringify(results), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── POST /push ───────────────────────────────────────────────
+    if (request.method === 'POST' && url.pathname === '/push') {
+      const data = await request.json()
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
+
+      try {
+        for (const table of tables) {
+          const rows = data[table] || []
+          if (rows.length === 0) continue
+
+          for (const row of rows) {
+            const columns = Object.keys(row).filter(k => k !== 'synced')
+            const placeholders = columns.map(() => '?').join(', ')
+            const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
+
+            await env.DB.prepare(`
+              INSERT INTO ${table} (${columns.join(', ')})
+              VALUES (${placeholders})
+              ON CONFLICT(id) DO UPDATE SET ${updates}
+              WHERE EXCLUDED.updated_at > ${table}.updated_at
+            `).bind(...columns.map(c => row[c])).run()
+          }
+        }
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    return new Response('Not Found', { status: 404 })
   },
 }
