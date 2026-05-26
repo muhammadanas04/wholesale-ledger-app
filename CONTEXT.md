@@ -120,13 +120,6 @@ wholesale-ledger/
 - **All monetary values** are stored as integers in the smallest currency unit (e.g. paise if using INR) to avoid floating point errors.
 - **Sync is non-blocking** — if sync fails or is slow, the app continues working normally on local data.
 - **No user authentication** is required — the app is installed on trusted in-shop machines only.
-- **The Cloudflare Worker secret token** is hardcoded in the Electron app's config and in the Worker — it just prevents random people from hitting the API.
 
 ---
 
-## What the App Is NOT
-
-- Not a full accounting or GST/tax filing system
-- Not a multi-location or multi-shop system
-- Not a point-of-sale (POS) system with barcode scanning
-- Not accessible from a browser or mobile — desktop Windows only
