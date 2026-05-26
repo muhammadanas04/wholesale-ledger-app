@@ -10,6 +10,22 @@ export default function Reports() {
     end: new Date().toISOString().slice(0, 10),
   })
   const [shopName, setShopName] = useState('Wholesale Ledger')
+
+  function setPresetDates(preset) {
+    const end = new Date()
+    const start = new Date()
+    if (preset === 'weekly') {
+      start.setDate(end.getDate() - 7)
+    } else if (preset === 'monthly') {
+      start.setMonth(end.getMonth() - 1)
+    } else if (preset === 'yearly') {
+      start.setFullYear(end.getFullYear() - 1)
+    }
+    setDates({
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    })
+  }
   const [summary, setSummary] = useState({
     totalSales: 0,
     topProducts: [],
@@ -60,6 +76,26 @@ export default function Reports() {
           <h1 className="text-2xl font-bold text-gray-800">Reports</h1>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setPresetDates('weekly')}
+              className="px-3 py-1 text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm rounded-md transition-all"
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => setPresetDates('monthly')}
+              className="px-3 py-1 text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm rounded-md transition-all"
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setPresetDates('yearly')}
+              className="px-3 py-1 text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm rounded-md transition-all"
+            >
+              Yearly
+            </button>
+          </div>
           <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
             <Calendar className="w-4 h-4 text-gray-400 ml-2" />
             <input
