@@ -10,7 +10,7 @@ export default function NewSale() {
   const [customerId, setCustomerId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
-  const [items, setItems] = useState([{ product_id: '', qty: '', unit_price: '' }])
+  const [items, setItems] = useState([{ product_id: '', qty: '', total_price: '' }])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function NewSale() {
   }, [])
 
   function addItem() {
-    setItems([...items, { product_id: '', qty: '', unit_price: '' }])
+    setItems([...items, { product_id: '', qty: '', total_price: '' }])
   }
 
   function removeItem(i) {
@@ -36,9 +36,8 @@ export default function NewSale() {
   }
 
   const total = items.reduce((s, item) => {
-    const qty = Number(item.qty) || 0
-    const price = Number(item.unit_price) || 0
-    return s + qty * price
+    const price = Number(item.total_price) || 0
+    return s + price
   }, 0)
 
   const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN')}`
@@ -50,11 +49,15 @@ export default function NewSale() {
       customer_id: Number(customerId),
       date,
       notes: notes || null,
-      items: items.map((i) => ({
-        product_id: Number(i.product_id),
-        qty: Number(i.qty),
-        unit_price: Number(i.unit_price),
-      })),
+      items: items.map((i) => {
+        const qty = Number(i.qty) || 0
+        const totalPrice = Number(i.total_price) || 0
+        return {
+          product_id: Number(i.product_id),
+          qty,
+          unit_price: qty > 0 ? totalPrice / qty : 0,
+        }
+      }),
     }
 
     const result = saleSchema.safeParse(saleData)
@@ -76,7 +79,7 @@ export default function NewSale() {
     setCustomerId('')
     setDate(new Date().toISOString().slice(0, 10))
     setNotes('')
-    setItems([{ product_id: '', qty: '', unit_price: '' }])
+    setItems([{ product_id: '', qty: '', total_price: '' }])
     setSaving(false)
   }
 
@@ -146,9 +149,9 @@ export default function NewSale() {
               <input
                 type="number"
                 step="0.01"
-                placeholder="Price"
-                value={item.unit_price}
-                onChange={(e) => updateItem(i, 'unit_price', e.target.value)}
+                placeholder="Total Price (₹)"
+                value={item.total_price}
+                onChange={(e) => updateItem(i, 'total_price', e.target.value)}
                 required
                 className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />

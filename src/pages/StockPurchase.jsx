@@ -11,7 +11,7 @@ const LIMIT = 10
 
 export default function StockPurchase() {
   const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ product_id: '', qty: '', cost_price: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
+  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
   const [purchases, setPurchases] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -37,10 +37,13 @@ export default function StockPurchase() {
   async function handleSubmit(e) {
     e.preventDefault()
 
+    const qty = Number(form.qty) || 0
+    const totalCost = Number(form.total_cost) || 0
+
     const purchaseData = {
       product_id: Number(form.product_id),
-      qty: Number(form.qty),
-      cost_price: Number(form.cost_price),
+      qty,
+      cost_price: qty > 0 ? totalCost / qty : 0,
       supplier: form.supplier || '',
       date: form.date,
     }
@@ -55,7 +58,7 @@ export default function StockPurchase() {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
     })
-    setForm({ product_id: '', qty: '', cost_price: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
+    setForm({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
     setSaving(false)
     setPage(1)
     load()
@@ -99,9 +102,9 @@ export default function StockPurchase() {
           <input
             type="number"
             step="0.01"
-            placeholder="Cost price per unit (₹)"
-            value={form.cost_price}
-            onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+            placeholder="Total Cost (₹)"
+            value={form.total_cost}
+            onChange={(e) => setForm({ ...form, total_cost: e.target.value })}
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
@@ -130,7 +133,7 @@ export default function StockPurchase() {
                 <th className="text-left px-5 py-3">Date</th>
                 <th className="text-left px-5 py-3">Product</th>
                 <th className="text-right px-5 py-3">Qty</th>
-                <th className="text-right px-5 py-3">Cost</th>
+                <th className="text-right px-5 py-3">Total Cost</th>
                 <th className="text-left px-5 py-3">Supplier</th>
               </tr>
             </thead>
@@ -146,7 +149,7 @@ export default function StockPurchase() {
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.product_name}</td>
                       <td className="px-5 py-3 text-right font-bold">{p.qty} <span className="text-[10px] text-gray-400 uppercase">{p.unit}</span></td>
-                      <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.cost_price)}</td>
+                      <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.qty * p.cost_price)}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.supplier || '-'}</td>
                     </tr>
                   ))}
