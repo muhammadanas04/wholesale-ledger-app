@@ -359,7 +359,12 @@ export default function Ledger() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap font-medium uppercase text-xs">
-                          {isSale ? `Sale #${entry.id}` : `Pay #${entry.id}`}
+                          <div>{isSale ? `Sale #${entry.id}` : `Pay #${entry.id}`}</div>
+                          {isSale && entry.weight > 0 && (
+                            <span className="text-[10px] font-bold text-gray-400 block mt-0.5 lowercase tracking-normal">
+                              {entry.weight} kg
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-orange-600">
                           {isSale ? formatCurrency(entry.amount) : '-'}

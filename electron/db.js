@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -57,6 +57,7 @@ function migrate() {
       cost_price INTEGER NOT NULL,
       supplier TEXT,
       date TEXT NOT NULL,
+      weight REAL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0
@@ -119,6 +120,17 @@ function migrate() {
     } catch (e) {
       // Column may already exist if created fresh
     }
+  }
+
+  if (version < 3) {
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN weight REAL;")
+    } catch (e) {
+      // Column may already exist if created fresh
+    }
+  }
+
+  if (version < SCHEMA_VERSION) {
     db.prepare("UPDATE _meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION))
   }
 }
@@ -265,10 +277,10 @@ function getStockPurchase(id) {
   `).get(id)
 }
 
-function addStockPurchase({ product_id, qty, cost_price, supplier, date }) {
+function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight }) {
   const insertPurchase = db.prepare(`
-    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
 
   const updateStock = db.prepare(`
@@ -278,7 +290,7 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date }) {
   `)
 
   const transaction = db.transaction(() => {
-    const result = insertPurchase.run(product_id, qty, cost_price, supplier || null, date)
+    const result = insertPurchase.run(product_id, qty, cost_price, supplier || null, date, weight !== undefined ? weight : null)
     updateStock.run(qty, product_id)
     return result.lastInsertRowid
   })
@@ -291,7 +303,8 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date }) {
 
 function getSales({ limit = 50, offset = 0 } = {}) {
   return db.prepare(`
-    SELECT s.*, c.name AS customer_name
+    SELECT s.*, c.name AS customer_name,
+           (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     ORDER BY s.date DESC
@@ -305,7 +318,8 @@ function getSalesCount() {
 
 function getSale(id) {
   const sale = db.prepare(`
-    SELECT s.*, c.name AS customer_name
+    SELECT s.*, c.name AS customer_name,
+           (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     WHERE s.id = ?
@@ -532,6 +546,7 @@ function buildLedgerQueries(filters = {}) {
       s.date,
       s.total_amount AS amount,
       s.notes,
+      (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight,
       s.id      AS reference_id,
       s.created_at
     FROM sales s
@@ -546,6 +561,7 @@ function buildLedgerQueries(filters = {}) {
       p.date,
       -p.amount AS amount,
       p.notes,
+      NULL      AS weight,
       p.id      AS reference_id,
       p.created_at
     FROM payments p

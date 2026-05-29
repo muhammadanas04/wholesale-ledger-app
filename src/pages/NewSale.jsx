@@ -44,7 +44,7 @@ export default function NewSale() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    
+
     const saleData = {
       customer_id: Number(customerId),
       date,
@@ -151,7 +151,7 @@ export default function NewSale() {
               <input
                 type="number"
                 step="any"
-                placeholder="Weight (optional)"
+                placeholder="Weight"
                 value={item.weight}
                 onChange={(e) => updateItem(i, 'weight', e.target.value)}
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"

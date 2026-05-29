@@ -7,7 +7,7 @@ import Pagination from '../components/Pagination'
 import Skeleton from '../components/Skeleton'
 
 const LIMIT = 12
-const units = ['kg', 'g', 'box', 'piece', 'litre', 'bottle', 'bag', 'dozen']
+const units = ['piece', 'kg', 'g', 'box', 'litre', 'bottle', 'bag', 'dozen']
 
 export default function Products() {
   const [products, setProducts] = useState([])
@@ -18,17 +18,17 @@ export default function Products() {
   const [editId, setEditId] = useState(null)
   const [sortBy, setSortBy] = useState('name')
   const [order, setOrder] = useState('ASC')
-  const [form, setForm] = useState({ name: '', unit: 'kg', reorder_level: '' })
+  const [form, setForm] = useState({ name: '', unit: 'piece', reorder_level: '' })
 
   async function load() {
     setLoading(true)
     const offset = (page - 1) * LIMIT
-    
+
     const [data, count] = await Promise.all([
       ipc('products:list', { limit: LIMIT, offset, sortBy, order }),
       ipc('products:count')
     ])
-    
+
     setProducts(data || [])
     setTotal(Math.ceil((count || 0) / LIMIT))
     setLoading(false)
@@ -47,7 +47,7 @@ export default function Products() {
 
   function openAdd() {
     setEditId(null)
-    setForm({ name: '', unit: 'kg', reorder_level: '' })
+    setForm({ name: '', unit: 'piece', reorder_level: '' })
     setShowForm(true)
   }
 
@@ -60,7 +60,7 @@ export default function Products() {
   async function handleSave(e) {
     e.preventDefault()
     const data = { name: form.name, unit: form.unit, reorder_level: Number(form.reorder_level) || 0 }
-    
+
     const result = productSchema.safeParse(data)
     if (!result.success) {
       return toast.error(result.error.errors[0].message)

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS stock_purchases (
   cost_price INTEGER NOT NULL,
   supplier TEXT,
   date TEXT NOT NULL,
+  weight REAL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0

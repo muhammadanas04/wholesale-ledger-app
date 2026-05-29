@@ -11,7 +11,7 @@ const LIMIT = 10
 
 export default function StockPurchase() {
   const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
+  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
   const [purchases, setPurchases] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -39,6 +39,7 @@ export default function StockPurchase() {
 
     const qty = Number(form.qty) || 0
     const totalCost = Number(form.total_cost) || 0
+    const weight = form.weight ? Number(form.weight) : null
 
     const purchaseData = {
       product_id: Number(form.product_id),
@@ -46,6 +47,7 @@ export default function StockPurchase() {
       cost_price: qty > 0 ? totalCost / qty : 0,
       supplier: form.supplier || '',
       date: form.date,
+      weight,
     }
 
     const result = stockPurchaseSchema.safeParse(purchaseData)
@@ -58,7 +60,7 @@ export default function StockPurchase() {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
     })
-    setForm({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10) })
+    setForm({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
     setSaving(false)
     setPage(1)
     load()
@@ -97,6 +99,14 @@ export default function StockPurchase() {
             value={form.qty}
             onChange={(e) => setForm({ ...form, qty: e.target.value })}
             required
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            type="number"
+            step="any"
+            placeholder="Weight (optional)"
+            value={form.weight}
+            onChange={(e) => setForm({ ...form, weight: e.target.value })}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <input
@@ -148,7 +158,14 @@ export default function StockPurchase() {
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.product_name}</td>
-                      <td className="px-5 py-3 text-right font-bold">{p.qty} <span className="text-[10px] text-gray-400 uppercase">{p.unit}</span></td>
+                      <td className="px-5 py-3 text-right font-bold">
+                        <div>{p.qty} <span className="text-[10px] text-gray-400 uppercase">{p.unit}</span></div>
+                        {p.weight > 0 && (
+                          <div className="text-[10px] text-gray-400 font-bold lowercase tracking-normal">
+                            {p.weight} kg
+                          </div>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.qty * p.cost_price)}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.supplier || '-'}</td>
                     </tr>

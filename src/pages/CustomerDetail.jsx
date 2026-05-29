@@ -60,7 +60,13 @@ export default function CustomerDetail() {
   if (!customer) return <div className="p-6 text-gray-400">Customer not found</div>
 
   const transactions = [
-    ...sales.map((s) => ({ type: 'sale', date: s.date, desc: `Sale #${s.id}`, amount: s.total_amount, id: s.id })),
+    ...sales.map((s) => ({
+      type: 'sale',
+      date: s.date,
+      desc: s.weight > 0 ? `Sale #${s.id} (${s.weight} kg)` : `Sale #${s.id}`,
+      amount: s.total_amount,
+      id: s.id
+    })),
     ...payments.map((p) => ({ type: 'payment', date: p.date, desc: p.notes || 'Payment', amount: -p.amount, id: p.id })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
