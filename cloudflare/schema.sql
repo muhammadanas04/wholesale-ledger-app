@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   product_id INTEGER NOT NULL,
   qty REAL NOT NULL,
   unit_price INTEGER NOT NULL,
+  weight REAL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0

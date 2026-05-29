@@ -10,7 +10,7 @@ export default function NewSale() {
   const [customerId, setCustomerId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
-  const [items, setItems] = useState([{ product_id: '', qty: '', total_price: '' }])
+  const [items, setItems] = useState([{ product_id: '', qty: '', total_price: '', weight: '' }])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function NewSale() {
   }, [])
 
   function addItem() {
-    setItems([...items, { product_id: '', qty: '', total_price: '' }])
+    setItems([...items, { product_id: '', qty: '', total_price: '', weight: '' }])
   }
 
   function removeItem(i) {
@@ -52,10 +52,12 @@ export default function NewSale() {
       items: items.map((i) => {
         const qty = Number(i.qty) || 0
         const totalPrice = Number(i.total_price) || 0
+        const weight = i.weight ? Number(i.weight) : null
         return {
           product_id: Number(i.product_id),
           qty,
           unit_price: qty > 0 ? totalPrice / qty : 0,
+          weight,
         }
       }),
     }
@@ -79,7 +81,7 @@ export default function NewSale() {
     setCustomerId('')
     setDate(new Date().toISOString().slice(0, 10))
     setNotes('')
-    setItems([{ product_id: '', qty: '', total_price: '' }])
+    setItems([{ product_id: '', qty: '', total_price: '', weight: '' }])
     setSaving(false)
   }
 
@@ -144,6 +146,14 @@ export default function NewSale() {
                 value={item.qty}
                 onChange={(e) => updateItem(i, 'qty', e.target.value)}
                 required
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Weight (optional)"
+                value={item.weight}
+                onChange={(e) => updateItem(i, 'weight', e.target.value)}
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
               <input

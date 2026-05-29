@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -79,6 +79,7 @@ function migrate() {
       product_id INTEGER NOT NULL REFERENCES products(id),
       qty REAL NOT NULL,
       unit_price INTEGER NOT NULL,
+      weight REAL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0
@@ -104,9 +105,21 @@ function migrate() {
     );
   `)
 
-  const version = db.prepare("SELECT value FROM _meta WHERE key = 'schema_version'").get()
-  if (!version) {
+  let version = 1
+  const versionRow = db.prepare("SELECT value FROM _meta WHERE key = 'schema_version'").get()
+  if (!versionRow) {
     db.prepare("INSERT INTO _meta (key, value) VALUES ('schema_version', ?)").run(String(SCHEMA_VERSION))
+  } else {
+    version = parseInt(versionRow.value, 10)
+  }
+
+  if (version < 2) {
+    try {
+      db.exec("ALTER TABLE sale_items ADD COLUMN weight REAL;")
+    } catch (e) {
+      // Column may already exist if created fresh
+    }
+    db.prepare("UPDATE _meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION))
   }
 }
 
@@ -317,8 +330,8 @@ function addSale({ customer_id, date, notes, items }) {
   `)
 
   const insertItem = db.prepare(`
-    INSERT INTO sale_items (sale_id, product_id, qty, unit_price)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight)
+    VALUES (?, ?, ?, ?, ?)
   `)
 
   const deductStock = db.prepare(`
@@ -333,7 +346,7 @@ function addSale({ customer_id, date, notes, items }) {
     const saleId = result.lastInsertRowid
 
     for (const item of items) {
-      insertItem.run(saleId, item.product_id, item.qty, item.unit_price)
+      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null)
       deductStock.run(item.qty, item.product_id)
     }
 
