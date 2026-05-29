@@ -122,13 +122,13 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-blue-600 rounded-2xl p-6 text-white space-y-1">
-          <p className="text-blue-100 text-sm font-medium">Total Sales (Period)</p>
-          <p className="text-3xl font-bold">{fmt(summary.totalSales)}</p>
+        <div className="bg-blue-600 rounded-2xl p-6 text-white space-y-1 min-w-0">
+          <p className="text-blue-100 text-sm font-medium truncate" title="Total Sales (Period)">Total Sales (Period)</p>
+          <p className="text-3xl font-bold truncate" title={fmt(summary.totalSales)}>{fmt(summary.totalSales)}</p>
         </div>
-        <div className="bg-gray-800 rounded-2xl p-6 text-white space-y-1">
-          <p className="text-gray-400 text-sm font-medium">Current Inventory Value</p>
-          <p className="text-3xl font-bold">{fmt(summary.inventoryValue)}</p>
+        <div className="bg-gray-800 rounded-2xl p-6 text-white space-y-1 min-w-0">
+          <p className="text-gray-400 text-sm font-medium truncate" title="Current Inventory Value">Current Inventory Value</p>
+          <p className="text-3xl font-bold truncate" title={fmt(summary.inventoryValue)}>{fmt(summary.inventoryValue)}</p>
         </div>
       </div>
 

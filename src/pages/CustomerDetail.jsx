@@ -113,7 +113,12 @@ export default function CustomerDetail() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 font-black text-gray-900 text-sm uppercase tracking-widest">Transaction History</div>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <span className="font-black text-gray-900 text-sm uppercase tracking-widest">Transaction History</span>
+          <Link to={`/ledger?customer_id=${customer.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline uppercase tracking-wider no-print">
+            View in Ledger →
+          </Link>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">

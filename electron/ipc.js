@@ -52,6 +52,11 @@ function registerIpcHandlers() {
   ipcMain.handle('payments:add', wrap((_e, data) => db.addPayment(data)))
   ipcMain.handle('payments:delete', wrap((_e, id) => db.deletePayment(id)))
 
+  // ── Ledger ─────────────────────────────────────────────────────
+  ipcMain.handle('ledger:list', wrap((_e, args) => db.getLedgerEntries(args)))
+  ipcMain.handle('ledger:count', wrap((_e, args) => db.getLedgerCount(args)))
+  ipcMain.handle('ledger:summary', wrap((_e, args) => db.getLedgerSummary(args)))
+
   // ── Reports ────────────────────────────────────────────────────
   ipcMain.handle('reports:sales-range', wrap((_e, startDate, endDate) => db.getSalesInRange(startDate, endDate)))
   ipcMain.handle('reports:top-products', wrap((_e, startDate, endDate) => db.getTopProducts(startDate, endDate)))

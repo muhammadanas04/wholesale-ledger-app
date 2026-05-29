@@ -33,8 +33,6 @@ This document tracks technical and user-experience improvements.
 - **User Documentation:** Basic PDF or "Help" screen for end-users.
 
 ### 4. Future Features (v2.0)
-- **Unit Conversions:** Logic to handle conversions (e.g., 1 Box = 24 Pieces).
 - **GST Support:** Simple tax calculation fields.
-- **Expense Tracking:** Shop expenses ledger.
 - **Automated Testing:** Implement Vitest for DB logic and Playwright for Electron E2E flows.
 

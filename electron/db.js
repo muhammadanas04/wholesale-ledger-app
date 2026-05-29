@@ -505,6 +505,159 @@ function getInventoryValue() {
   return row ? row.total_value : 0
 }
 
+// ── Ledger ─────────────────────────────────────────────────────────
+
+function buildLedgerQueries(filters = {}) {
+  const { customer_id, date_from, date_to, type } = filters
+
+  let salesSql = `
+    SELECT
+      'sale'    AS type,
+      s.id,
+      s.customer_id,
+      c.name    AS customer_name,
+      s.date,
+      s.total_amount AS amount,
+      s.notes,
+      s.id      AS reference_id,
+      s.created_at
+    FROM sales s
+    JOIN customers c ON c.id = s.customer_id
+  `
+  let paymentsSql = `
+    SELECT
+      'payment' AS type,
+      p.id,
+      p.customer_id,
+      c.name    AS customer_name,
+      p.date,
+      -p.amount AS amount,
+      p.notes,
+      p.id      AS reference_id,
+      p.created_at
+    FROM payments p
+    JOIN customers c ON c.id = p.customer_id
+  `
+
+  let salesConds = []
+  let paymentsConds = []
+  let salesParams = []
+  let paymentsParams = []
+
+  if (customer_id) {
+    salesConds.push("s.customer_id = ?")
+    paymentsConds.push("p.customer_id = ?")
+    salesParams.push(Number(customer_id))
+    paymentsParams.push(Number(customer_id))
+  }
+  if (date_from) {
+    salesConds.push("s.date >= ?")
+    paymentsConds.push("p.date >= ?")
+    salesParams.push(date_from)
+    paymentsParams.push(date_from)
+  }
+  if (date_to) {
+    salesConds.push("s.date <= ?")
+    paymentsConds.push("p.date <= ?")
+    salesParams.push(date_to)
+    paymentsParams.push(date_to)
+  }
+
+  if (salesConds.length > 0) {
+    salesSql += " WHERE " + salesConds.join(" AND ")
+  }
+  if (paymentsConds.length > 0) {
+    paymentsSql += " WHERE " + paymentsConds.join(" AND ")
+  }
+
+  let parts = []
+  let params = []
+
+  if (!type || type === 'all') {
+    parts.push(salesSql)
+    params.push(...salesParams)
+    parts.push(paymentsSql)
+    params.push(...paymentsParams)
+  } else if (type === 'sale') {
+    parts.push(salesSql)
+    params.push(...salesParams)
+  } else if (type === 'payment') {
+    parts.push(paymentsSql)
+    params.push(...paymentsParams)
+  }
+
+  return { parts, params }
+}
+
+function getLedgerEntries(filters = {}) {
+  const { limit = 20, offset = 0 } = filters
+  const { parts, params } = buildLedgerQueries(filters)
+
+  if (parts.length === 0) return []
+
+  const unionSql = parts.join(" UNION ALL ")
+  const sql = `
+    SELECT * FROM (
+      ${unionSql}
+    )
+    ORDER BY date DESC, created_at DESC
+    LIMIT ? OFFSET ?
+  `
+
+  const allParams = [...params, limit, offset]
+  return db.prepare(sql).all(...allParams)
+}
+
+function getLedgerCount(filters = {}) {
+  const { parts, params } = buildLedgerQueries(filters)
+
+  if (parts.length === 0) return 0
+
+  const unionSql = parts.join(" UNION ALL ")
+  const sql = `
+    SELECT COUNT(*) AS count FROM (
+      ${unionSql}
+    )
+  `
+
+  return db.prepare(sql).get(...params).count
+}
+
+function getLedgerSummary(filters = {}) {
+  const { parts, params } = buildLedgerQueries(filters)
+
+  if (parts.length === 0) {
+    return {
+      total_sales: 0,
+      total_payments: 0,
+      net_outstanding: 0,
+      entry_count: 0
+    }
+  }
+
+  const unionSql = parts.join(" UNION ALL ")
+  const sql = `
+    SELECT 
+      COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN type = 'payment' THEN -amount ELSE 0 END), 0) AS total_payments,
+      COUNT(*) AS entry_count
+    FROM (
+      ${unionSql}
+    )
+  `
+
+  const row = db.prepare(sql).get(...params)
+  const total_sales = row.total_sales
+  const total_payments = row.total_payments
+
+  return {
+    total_sales,
+    total_payments,
+    net_outstanding: total_sales - total_payments,
+    entry_count: row.entry_count
+  }
+}
+
 // ── Metadata ───────────────────────────────────────────────────────
 
 function getMeta(key) {
@@ -555,6 +708,9 @@ module.exports = {
   getTopCustomers,
   getStockMovements,
   getInventoryValue,
+  getLedgerEntries,
+  getLedgerCount,
+  getLedgerSummary,
   getMeta,
   setMeta,
 }

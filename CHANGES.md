@@ -113,3 +113,11 @@
 - **Issue 2 — Rows permanently lost during push**: Push now captures row IDs before sending, then marks only those specific IDs as `synced = 1` (`WHERE id IN (...)`), avoiding a race where rows inserted mid-sync got silently dropped.
 - **Issue 3 — Worker ignored deletions**: `POST /push` handler reads `data._deletes` and deletes from D1 with a `tables.includes()` safety guard against malformed payloads.
 - **Deployed** updated worker + D1 schema (7 tables incl. `deleted_log`).
+
+## Phase 8 — Cross-Customer Ledger Section (from LEDGER_PLAN.md)
+
+- **Added database queries** for Ledger in `electron/db.js`: `getLedgerEntries`, `getLedgerCount`, and `getLedgerSummary` which execute performant dynamic `UNION ALL` statements over sales and payments tables.
+- **Registered new IPC handlers** in `electron/ipc.js`: `ledger:list`, `ledger:count`, and `ledger:summary`.
+- **Created a first-class Ledger Screen** (`src/pages/Ledger.jsx`) — a paginated cross-customer statement view equipped with dynamic customer, date range, and transaction type filters, aggregate summary cards, direct row deletions with confirm dialogs, and a clean print-ready stylesheet for PDF downloads.
+- **Wired navigation & cross-links** — added `/ledger` route in `src/main.jsx`, navigation item with `BookOpen` icon in `src/components/Sidebar.jsx`, "View Ledger" quick-link pre-filter on the Dashboard, and "View in Ledger" jump links on Customer Detail.
+- **Registered Ctrl+L keyboard shortcut** in the renderer shortcut listener (`src/main.jsx`) and fully documented it in `README.md`.
