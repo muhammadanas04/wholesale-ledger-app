@@ -74,3 +74,9 @@ CREATE TABLE IF NOT EXISTS deleted_log (
   deleted_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS _meta (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT
+);

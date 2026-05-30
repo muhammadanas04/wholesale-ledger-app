@@ -41,14 +41,78 @@ export default function Ledger() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null) // { id, type }
   const [showPrices, setShowPrices] = useState(true)
+  const [roundingConfig, setRoundingConfig] = useState(null)
 
   useEffect(() => {
-    async function checkPricePref() {
+    async function loadConfig() {
       const val = await ipc('meta:get', 'show_price_ledger')
       setShowPrices(val !== 'false')
+
+      const rulesVal = await ipc('meta:get', 'rounding_rules')
+      if (rulesVal) {
+        try {
+          setRoundingConfig(JSON.parse(rulesVal))
+        } catch (e) {
+          console.error('Failed to parse rounding rules:', e)
+        }
+      }
     }
-    checkPricePref()
+    loadConfig()
   }, [])
+
+  // Auto-detect modulus from rule range values
+  function getModulus(from, to) {
+    const maxVal = Math.max(Math.abs(from), Math.abs(to))
+    if (maxVal < 1) return 1        // decimal rules: 0.0-0.9 → mod 1
+    if (maxVal < 10) return 10       // ones digit: 0-9 → mod 10
+    if (maxVal < 100) return 100     // tens: 10-99 → mod 100
+    if (maxVal < 1000) return 1000   // hundreds: 100-999 → mod 1000
+    return 10
+  }
+
+  // Apply dynamic rounding based on user rules (unified ceil/floor logic)
+  function applyRounding(amountInt, config) {
+    if (typeof amountInt !== 'number' || isNaN(amountInt) || !config) {
+      return { discountInt: 0, finalInt: amountInt }
+    }
+
+    const { rules } = config
+    if (!Array.isArray(rules) || rules.length === 0) {
+      return { discountInt: 0, finalInt: amountInt }
+    }
+
+    const isNegative = amountInt < 0
+    const absVal = Math.abs(amountInt)
+    const amountDecimal = absVal / 100
+
+    for (const rule of rules) {
+      const fromVal = parseFloat(rule.from)
+      const toVal = parseFloat(rule.to)
+      if (isNaN(fromVal) || isNaN(toVal)) continue
+
+      const modulus = getModulus(fromVal, toVal)
+      const relevantPart = amountDecimal % modulus
+      const eps = 0.0001
+
+      if (relevantPart >= fromVal - eps && relevantPart <= toVal + eps) {
+        let finalDecimal
+        if (rule.action === 'ceil') {
+          // Ceil: drop matched portion to 0
+          finalDecimal = amountDecimal - relevantPart
+        } else {
+          // Floor: drop matched portion to 0, add carry (modulus)
+          finalDecimal = amountDecimal - relevantPart + modulus
+        }
+
+        const finalInt = Math.round(finalDecimal * 100) * (isNegative ? -1 : 1)
+        const discountInt = finalInt - amountInt
+        return { discountInt, finalInt }
+      }
+    }
+
+    return { discountInt: 0, finalInt: amountInt }
+  }
+
 
   // Load URL query params on mount/change
   useEffect(() => {
@@ -333,6 +397,8 @@ export default function Ledger() {
                 <th className="text-left px-6 py-3.5 w-32">Reference</th>
                 <th className="text-right px-6 py-3.5 w-36">Debit (Dr)</th>
                 <th className="text-right px-6 py-3.5 w-36">Credit (Cr)</th>
+                <th className="text-right px-6 py-3.5 w-36">Discount</th>
+                <th className="text-right px-6 py-3.5 w-36">Final Value</th>
                 <th className="text-left px-6 py-3.5">Notes</th>
                 <th className="text-center px-6 py-3.5 w-20 no-print">Action</th>
               </tr>
@@ -341,7 +407,7 @@ export default function Ledger() {
               {loading ? (
                 [...Array(10)].map((_, idx) => (
                   <tr key={idx}>
-                    <td colSpan={8} className="px-6 py-4">
+                    <td colSpan={10} className="px-6 py-4">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
@@ -350,6 +416,17 @@ export default function Ledger() {
                 <>
                   {entries.map((entry, idx) => {
                     const isSale = entry.type === 'sale'
+                    
+                    // Calculate rounding/discount for payment received
+                    let discountInt = 0
+                    let finalInt = 0
+                    if (!isSale) {
+                      const absOriginal = -entry.amount
+                      const result = applyRounding(absOriginal, roundingConfig)
+                      discountInt = result.discountInt
+                      finalInt = result.finalInt
+                    }
+
                     return (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(entry.date)}</td>
@@ -381,6 +458,30 @@ export default function Ledger() {
                         <td className="px-6 py-4 text-right font-bold text-green-600">
                           {!isSale ? (showPrices ? formatCurrency(-entry.amount) : '***') : '-'}
                         </td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                          {!isSale ? (
+                            showPrices ? (
+                              discountInt < 0 ? (
+                                <span className="font-bold text-red-500">
+                                  {formatCurrency(discountInt)}
+                                </span>
+                              ) : discountInt > 0 ? (
+                                <span className="font-bold text-emerald-600">
+                                  +{formatCurrency(discountInt)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 font-medium">-</span>
+                              )
+                            ) : (
+                              '***'
+                            )
+                          ) : (
+                            <span className="text-gray-400 font-medium">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
+                          {!isSale ? (showPrices ? formatCurrency(finalInt) : '***') : '-'}
+                        </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}
                         </td>
@@ -397,7 +498,7 @@ export default function Ledger() {
                   })}
                   {entries.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center py-16 text-gray-400 italic">
+                      <td colSpan={10} className="text-center py-16 text-gray-400 italic">
                         No entries found for the selected filters.
                       </td>
                     </tr>

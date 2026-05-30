@@ -52,6 +52,19 @@ async function runSyncCycle() {
     if (!pullResponse.ok) throw new Error(`Pull failed: ${pullResponse.statusText}`)
     
     const remoteData = await pullResponse.json()
+
+    // Sync remote rounding rules settings
+    if (remoteData && remoteData._settings) {
+      const { rounding_rules: remoteRules, rounding_rules_updated_at: remoteRulesTime } = remoteData._settings
+      if (remoteRules && remoteRulesTime) {
+        const localRulesTime = getMeta('rounding_rules_updated_at')
+        if (!localRulesTime || new Date(remoteRulesTime) > new Date(localRulesTime)) {
+          setMeta('rounding_rules', remoteRules)
+          setMeta('rounding_rules_updated_at', remoteRulesTime)
+        }
+      }
+    }
+
     const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
 
     db.transaction(() => {
@@ -95,14 +108,26 @@ async function runSyncCycle() {
 
     const hasLocalChanges = Object.values(pushData).some(rows => rows.length > 0) || pendingDeletes.length > 0
 
-    if (hasLocalChanges) {
+    // Sync local rounding rules settings
+    const localRules = getMeta('rounding_rules')
+    const localRulesTime = getMeta('rounding_rules_updated_at')
+    const hasSettingsChanges = localRulesTime && new Date(localRulesTime) > new Date(lastSync)
+
+    const shouldPush = hasLocalChanges || hasSettingsChanges
+
+    if (shouldPush) {
+      const settingsPayload = (localRules && localRulesTime) ? {
+        rounding_rules: localRules,
+        rounding_rules_updated_at: localRulesTime
+      } : null
+
       const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${secret}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes })
+        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes, _settings: settingsPayload })
       })
 
       if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle } from 'lucide-react'
+import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Settings() {
@@ -14,6 +14,12 @@ export default function Settings() {
     show_price_ledger: 'true',
     layout_size: 'normal',
   })
+
+  // Rounding Rules State
+  const [roundingConfig, setRoundingConfig] = useState({ rules: [] })
+  const [newRuleFrom, setNewRuleFrom] = useState('')
+  const [newRuleTo, setNewRuleTo] = useState('')
+  const [newRuleAction, setNewRuleAction] = useState('ceil')
 
   // Sync config state
   const [syncConfigured, setSyncConfigured] = useState(false)
@@ -40,6 +46,21 @@ export default function Settings() {
       }
       setConfig(newConfig)
 
+      // Load rounding rules
+      const rulesVal = await ipc('meta:get', 'rounding_rules')
+      if (rulesVal) {
+        try {
+          const parsed = JSON.parse(rulesVal)
+          if (parsed && typeof parsed === 'object') {
+            setRoundingConfig({
+              rules: Array.isArray(parsed.rules) ? parsed.rules : []
+            })
+          }
+        } catch (e) {
+          console.error('Failed to parse rounding rules:', e)
+        }
+      }
+
       // Load sync config
       const syncConfig = await ipc('sync:get-config')
       if (syncConfig) {
@@ -60,6 +81,10 @@ export default function Settings() {
         await ipc('meta:set', key, value)
       }
       
+      // Save rounding rules
+      await ipc('meta:set', 'rounding_rules', JSON.stringify(roundingConfig))
+      await ipc('meta:set', 'rounding_rules_updated_at', new Date().toISOString())
+
       // Instantly apply dynamic layout scaling
       const sizeMap = {
         normal: '16px',
@@ -75,6 +100,46 @@ export default function Settings() {
       setLoading(false)
     }
   }
+
+  const handleAddRule = () => {
+    const fromVal = parseFloat(newRuleFrom)
+    const toVal = parseFloat(newRuleTo)
+
+    if (isNaN(fromVal) || isNaN(toVal)) {
+      return toast.error('Please enter valid numeric values for From and To')
+    }
+
+    if (fromVal < 0 || toVal < 0) {
+      return toast.error('Values cannot be negative')
+    }
+
+    if (fromVal > toVal) {
+      return toast.error('"From" value must be less than or equal to "To" value')
+    }
+
+    // Check for overlaps with existing rules
+    const overlap = roundingConfig.rules.some((rule) => {
+      const rf = parseFloat(rule.from)
+      const rt = parseFloat(rule.to)
+      return (fromVal >= rf && fromVal <= rt) || (toVal >= rf && toVal <= rt) || (rf >= fromVal && rf <= toVal)
+    })
+
+    if (overlap) {
+      return toast.error('This range overlaps with an existing rule')
+    }
+
+    const newRule = { from: fromVal, to: toVal, action: newRuleAction }
+    setRoundingConfig({
+      ...roundingConfig,
+      rules: [...roundingConfig.rules, newRule].sort((a, b) => a.from - b.from)
+    })
+
+    setNewRuleFrom('')
+    setNewRuleTo('')
+    setNewRuleAction('ceil')
+    toast.success('Rounding rule added')
+  }
+
 
   async function handleSyncSave(e) {
     e.preventDefault()
@@ -229,6 +294,133 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Rounding & Discount Rules */}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
+            <Coins className="w-4 h-4 text-amber-500" /> Rounding & Discount Rules
+          </div>
+          <div className="p-5 space-y-5">
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+              Configure how payment amounts are rounded. The system auto-detects the digit position from your range values.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-gray-50/50 border border-gray-100 rounded-xl">
+              <div>
+                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Ceil (Round Down)</p>
+                <p className="text-xs text-gray-500">Drops matched digits to 0</p>
+                <p className="text-[10px] text-gray-400 font-mono mt-1">e.g. 0 to 5 → ceil: ₹123 → ₹120</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Floor (Round Up)</p>
+                <p className="text-xs text-gray-500">Drops matched digits to 0, adds carry</p>
+                <p className="text-[10px] text-gray-400 font-mono mt-1">e.g. 6 to 9 → floor: ₹127 → ₹130</p>
+              </div>
+            </div>
+
+            {/* Rules List */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Active Rounding Rules</label>
+              {roundingConfig.rules.length === 0 ? (
+                <div className="p-8 border border-dashed border-gray-200 rounded-xl text-center text-gray-400 italic text-sm bg-gray-50/20">
+                  No rounding rules configured yet. Payments will remain exact.
+                </div>
+              ) : (
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider border-b border-gray-100">
+                      <tr>
+                        <th className="px-5 py-3">Range</th>
+                        <th className="px-5 py-3">Action</th>
+                        <th className="px-5 py-3 text-center w-20">Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {roundingConfig.rules.map((rule, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50/30 transition-colors">
+                          <td className="px-5 py-3 font-mono font-bold text-gray-700">
+                            {rule.from} to {rule.to}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-bold text-xs border ${
+                              rule.action === 'ceil'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                : 'bg-blue-50 text-blue-700 border-blue-100'
+                            }`}>
+                              {rule.action === 'ceil' ? 'Ceil (Round Down)' : 'Floor (Round Up)'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = roundingConfig.rules.filter((_, i) => i !== idx)
+                                setRoundingConfig({ ...roundingConfig, rules: updated })
+                              }}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Add New Rule Form */}
+            <div className="bg-gray-50/70 p-5 border border-gray-200/60 rounded-xl space-y-4 shadow-inner">
+              <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Add Rounding Rule</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">From</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    placeholder="e.g. 0 or 0.50"
+                    value={newRuleFrom}
+                    onChange={(e) => setNewRuleFrom(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">To</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    placeholder="e.g. 5 or 0.99"
+                    value={newRuleTo}
+                    onChange={(e) => setNewRuleTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Action</label>
+                  <select
+                    value={newRuleAction}
+                    onChange={(e) => setNewRuleAction(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  >
+                    <option value="ceil">Ceil (Round Down)</option>
+                    <option value="floor">Floor (Round Up)</option>
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddRule}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-all shadow-md active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Rule
+              </button>
+            </div>
+          </div>
+        </div>
+
 
         <button
           type="submit"

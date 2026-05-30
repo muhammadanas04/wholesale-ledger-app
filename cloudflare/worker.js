@@ -26,6 +26,24 @@ export default {
         results[table] = rows.map(({ synced, ...rest }) => rest)
       }
 
+      // Fetch dynamic settings from _meta
+      let roundingRules = null
+      let roundingRulesUpdatedAt = null
+      try {
+        const rulesRow = await env.DB.prepare("SELECT value, updated_at FROM _meta WHERE key = 'rounding_rules'").get()
+        if (rulesRow) {
+          roundingRules = rulesRow.value
+          roundingRulesUpdatedAt = rulesRow.updated_at
+        }
+      } catch (e) {
+        // Table may not exist yet or be empty, ignore safely
+      }
+
+      results['_settings'] = {
+        rounding_rules: roundingRules,
+        rounding_rules_updated_at: roundingRulesUpdatedAt
+      }
+
       return new Response(JSON.stringify(results), {
         headers: { 'Content-Type': 'application/json' },
       })
@@ -61,6 +79,22 @@ export default {
           const { table_name, row_id } = entry
           if (!tables.includes(table_name)) continue // safety guard
           await env.DB.prepare(`DELETE FROM ${table_name} WHERE id = ?`).bind(row_id).run()
+        }
+
+        // Handle settings push
+        const settings = data._settings
+        if (settings && settings.rounding_rules && settings.rounding_rules_updated_at) {
+          try {
+            await env.DB.prepare(`
+              INSERT INTO _meta (key, value, updated_at)
+              VALUES ('rounding_rules', ?, ?)
+              ON CONFLICT(key) DO UPDATE SET
+                value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
+                updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
+            `).bind(settings.rounding_rules, settings.rounding_rules_updated_at).run()
+          } catch (e) {
+            console.error('Settings sync push error:', e)
+          }
         }
 
         return new Response(JSON.stringify({ success: true }), {
