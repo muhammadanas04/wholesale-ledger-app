@@ -17,6 +17,15 @@ export default function CustomerDetail() {
   // Confirm dialog state
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteSaleId, setDeleteSaleId] = useState(null)
+  const [showPrices, setShowPrices] = useState(true)
+
+  useEffect(() => {
+    async function checkPricePref() {
+      const val = await ipc('meta:get', 'show_price_customers')
+      setShowPrices(val !== 'false')
+    }
+    checkPricePref()
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -112,7 +121,7 @@ export default function CustomerDetail() {
           <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 min-w-[200px]">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
             <p className={`text-2xl font-black tracking-tighter ${customer.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-              {formatCurrency(customer.balance)}
+              {showPrices ? formatCurrency(customer.balance) : '***'}
             </p>
           </div>
         </div>
@@ -142,10 +151,10 @@ export default function CustomerDetail() {
                   <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
                   <td className={`px-6 py-4 text-right font-bold ${r.amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {r.amount > 0 ? formatCurrency(r.amount) : `-${formatCurrency(-r.amount)}`}
+                    {showPrices ? (r.amount > 0 ? formatCurrency(r.amount) : `-${formatCurrency(-r.amount)}`) : '***'}
                   </td>
                   <td className="px-6 py-4 text-right font-black tracking-tight text-gray-700">
-                    {formatCurrency(Math.abs(r.running))}
+                    {showPrices ? formatCurrency(Math.abs(r.running)) : '***'}
                     <span className="text-[10px] ml-1 uppercase">{r.running > 0 ? 'Dr' : 'Cr'}</span>
                   </td>
                   <td className="px-6 py-4 text-center no-print">

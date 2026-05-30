@@ -13,7 +13,6 @@ import NewSale from './pages/NewSale'
 import StockPurchase from './pages/StockPurchase'
 import Payments from './pages/Payments'
 import Ledger from './pages/Ledger'
-import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 
 function App() {
@@ -30,7 +29,7 @@ function App() {
           case 't': navigate('/stock-purchase'); break
           case 'w': navigate('/payments'); break
           case 'l': navigate('/ledger'); break
-          case 'r': navigate('/reports'); break
+          case 'r': navigate('/'); break
           case 's': navigate('/settings'); break
         }
       }
@@ -55,7 +54,6 @@ function App() {
             <Route path="/stock-purchase" element={<StockPurchase />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/ledger" element={<Ledger />} />
-            <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

@@ -40,6 +40,15 @@ export default function Ledger() {
   // Dialog States
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null) // { id, type }
+  const [showPrices, setShowPrices] = useState(true)
+
+  useEffect(() => {
+    async function checkPricePref() {
+      const val = await ipc('meta:get', 'show_price_ledger')
+      setShowPrices(val !== 'false')
+    }
+    checkPricePref()
+  }, [])
 
   // Load URL query params on mount/change
   useEffect(() => {
@@ -265,7 +274,7 @@ export default function Ledger() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Total Sales (Dr)">Total Sales (Dr)</p>
-            <p className="text-lg sm:text-xl font-black text-orange-600 tracking-tighter truncate" title={formatCurrency(summary.total_sales)}>{formatCurrency(summary.total_sales)}</p>
+            <p className="text-lg sm:text-xl font-black text-orange-600 tracking-tighter truncate" title={showPrices ? formatCurrency(summary.total_sales) : '***'}>{showPrices ? formatCurrency(summary.total_sales) : '***'}</p>
           </div>
         </div>
 
@@ -276,7 +285,7 @@ export default function Ledger() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Total Payments (Cr)">Total Payments (Cr)</p>
-            <p className="text-lg sm:text-xl font-black text-green-600 tracking-tighter truncate" title={formatCurrency(summary.total_payments)}>{formatCurrency(summary.total_payments)}</p>
+            <p className="text-lg sm:text-xl font-black text-green-600 tracking-tighter truncate" title={showPrices ? formatCurrency(summary.total_payments) : '***'}>{showPrices ? formatCurrency(summary.total_payments) : '***'}</p>
           </div>
         </div>
 
@@ -293,8 +302,8 @@ export default function Ledger() {
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Net Outstanding">Net Outstanding</p>
             <p className={`text-lg sm:text-xl font-black tracking-tighter truncate ${
               summary.net_outstanding > 0 ? 'text-red-600' : 'text-blue-600'
-            }`} title={formatCurrency(summary.net_outstanding)}>
-              {formatCurrency(summary.net_outstanding)}
+            }`} title={showPrices ? formatCurrency(summary.net_outstanding) : '***'}>
+              {showPrices ? formatCurrency(summary.net_outstanding) : '***'}
             </p>
           </div>
         </div>
@@ -367,10 +376,10 @@ export default function Ledger() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-orange-600">
-                          {isSale ? formatCurrency(entry.amount) : '-'}
+                          {isSale ? (showPrices ? formatCurrency(entry.amount) : '***') : '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-green-600">
-                          {!isSale ? formatCurrency(-entry.amount) : '-'}
+                          {!isSale ? (showPrices ? formatCurrency(-entry.amount) : '***') : '-'}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}

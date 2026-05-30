@@ -8,6 +8,10 @@ export default function Settings() {
   const [config, setConfig] = useState({
     shop_name: '',
     currency_symbol: '₹',
+    show_price_dashboard: 'true',
+    show_price_customers: 'true',
+    show_price_payments: 'true',
+    show_price_ledger: 'true',
   })
 
   // Sync config state
@@ -19,7 +23,14 @@ export default function Settings() {
 
   useEffect(() => {
     async function load() {
-      const keys = ['shop_name', 'currency_symbol']
+      const keys = [
+        'shop_name', 
+        'currency_symbol', 
+        'show_price_dashboard', 
+        'show_price_customers', 
+        'show_price_payments', 
+        'show_price_ledger'
+      ]
       const newConfig = { ...config }
       for (const key of keys) {
         const val = await ipc('meta:get', key)
@@ -117,6 +128,70 @@ export default function Settings() {
                 placeholder="e.g. ₹ or $"
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Price Display Preferences */}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
+            <SettingsIcon className="w-4 h-4 text-violet-500" /> Price Display Preferences
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Select which sections should display prices/balances:</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={config.show_price_dashboard === 'true'}
+                  onChange={(e) => setConfig({ ...config, show_price_dashboard: e.target.checked ? 'true' : 'false' })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Dashboard</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show sales & inventory values</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={config.show_price_customers === 'true'}
+                  onChange={(e) => setConfig({ ...config, show_price_customers: e.target.checked ? 'true' : 'false' })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Customers</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show outstanding client balances</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={config.show_price_payments === 'true'}
+                  onChange={(e) => setConfig({ ...config, show_price_payments: e.target.checked ? 'true' : 'false' })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Payments</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show transaction amount figures</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={config.show_price_ledger === 'true'}
+                  onChange={(e) => setConfig({ ...config, show_price_ledger: e.target.checked ? 'true' : 'false' })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Ledger</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show Debit / Credit account logs</p>
+                </div>
+              </label>
             </div>
           </div>
         </div>
