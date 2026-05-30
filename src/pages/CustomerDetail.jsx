@@ -1,11 +1,303 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { ArrowLeft, Phone, MapPin, Trash2, Download } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer } from 'lucide-react'
 import { formatCurrency, formatDate, formatPhone } from '../lib/formatters'
 import Skeleton from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { toast } from 'sonner'
+
+// Auto-detect modulus from rule range values
+function getModulus(from, to) {
+  const maxVal = Math.max(Math.abs(from), Math.abs(to))
+  if (maxVal < 1) return 1        // decimal rules: 0.0-0.9 → mod 1
+  if (maxVal < 10) return 10       // ones digit: 0-9 → mod 10
+  if (maxVal < 100) return 100     // tens: 10-99 → mod 100
+  if (maxVal < 1000) return 1000   // hundreds: 100-999 → mod 1000
+  return 10
+}
+
+// Apply rounding based on ceil/floor rules
+function applyRounding(amountInt, config) {
+  if (typeof amountInt !== 'number' || isNaN(amountInt) || !config || !config.enabled) {
+    return { discountInt: 0, finalInt: amountInt }
+  }
+
+  const isNegative = amountInt < 0
+  const absVal = Math.abs(amountInt)
+  const amountDecimal = absVal / 100
+
+  // Try each rule: ceil first, then floor
+  const rules = [
+    { ...config.ceil, action: 'ceil' },
+    { ...config.floor, action: 'floor' }
+  ]
+
+  for (const rule of rules) {
+    const fromVal = parseFloat(rule.from)
+    const toVal = parseFloat(rule.to)
+    if (isNaN(fromVal) || isNaN(toVal)) continue
+
+    const modulus = getModulus(fromVal, toVal)
+    const relevantPart = amountDecimal % modulus
+    const eps = 0.0001
+
+    if (relevantPart >= fromVal - eps && relevantPart <= toVal + eps) {
+      let finalDecimal
+      if (rule.action === 'ceil') {
+        finalDecimal = amountDecimal - relevantPart
+      } else {
+        finalDecimal = amountDecimal - relevantPart + modulus
+      }
+
+      const finalInt = Math.round(finalDecimal * 100) * (isNegative ? -1 : 1)
+      const discountInt = finalInt - amountInt
+      return { discountInt, finalInt }
+    }
+  }
+
+  return { discountInt: 0, finalInt: amountInt }
+}
+
+function BillInvoice({ 
+  sale, 
+  customer, 
+  showPrices, 
+  roundingConfig, 
+  shopName, 
+  shopAddress, 
+  shopPhone,
+  gstEnabled,
+  gstNumber,
+  gstPercentage,
+  gstType
+}) {
+  const items = sale.items || []
+
+  // Format date and time
+  const saleDate = new Date(sale.created_at || sale.date)
+  const formattedDate = !isNaN(saleDate) ? saleDate.toLocaleDateString('en-CA') : sale.date
+  const formattedTime = !isNaN(saleDate) ? saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''
+
+  // GST & Rounding Calculations
+  let subtotal = sale.total_amount
+  let gstAmount = 0
+  let gstIncluded = 0
+  let taxableSubtotal = 0
+  let preRoundingTotal = sale.total_amount
+  let discountInt = 0
+  let finalInt = sale.total_amount
+
+  if (gstEnabled) {
+    if (gstType === 'exclusive') {
+      subtotal = sale.total_amount
+      gstAmount = Math.round(subtotal * (gstPercentage / 100))
+      preRoundingTotal = subtotal + gstAmount
+      const rounded = applyRounding(preRoundingTotal, roundingConfig)
+      discountInt = rounded.discountInt
+      finalInt = rounded.finalInt
+    } else {
+      // Inclusive GST
+      preRoundingTotal = sale.total_amount
+      const rounded = applyRounding(preRoundingTotal, roundingConfig)
+      discountInt = rounded.discountInt
+      finalInt = rounded.finalInt
+      
+      taxableSubtotal = Math.round(preRoundingTotal / (1 + gstPercentage / 100))
+      gstIncluded = preRoundingTotal - taxableSubtotal
+    }
+  } else {
+    preRoundingTotal = sale.total_amount
+    const rounded = applyRounding(preRoundingTotal, roundingConfig)
+    discountInt = rounded.discountInt
+    finalInt = rounded.finalInt
+  }
+
+  return (
+    <div className="mt-8 bg-white border border-gray-300 rounded-2xl p-8 text-gray-800 font-sans max-w-2xl mx-auto print:border-0 print:p-0">
+      {/* Header Section */}
+      <div className="flex justify-between items-start border-b border-gray-300 pb-6 mb-6">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
+            {shopName || 'SHOP NAME'}
+          </h1>
+          {shopAddress && (
+            <p className="text-xs font-semibold text-gray-500 mt-1 whitespace-pre-line max-w-xs leading-relaxed">
+              {shopAddress}
+            </p>
+          )}
+          {shopPhone && (
+            <p className="text-xs font-semibold text-gray-500 mt-1">
+              Ph: {shopPhone}
+            </p>
+          )}
+          {gstEnabled && gstNumber && (
+            <p className="text-xs font-black text-slate-700 mt-1 uppercase tracking-wider">
+              GSTIN: {gstNumber}
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <h2 className="text-xl font-black text-slate-400 tracking-wider uppercase">INVOICE</h2>
+          <div className="text-xs font-bold text-gray-600 mt-2">
+            Bill No: <span className="font-extrabold text-slate-900">{sale.id}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Date: {formattedDate}
+          </p>
+          {formattedTime && (
+            <p className="text-xs text-gray-500">
+              Time: {formattedTime}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Billed To Section */}
+      <div className="mb-8 bg-slate-50/50 border border-slate-100 rounded-xl p-5">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+          BILLED TO:
+        </p>
+        <h3 className="text-lg font-black text-slate-900">
+          {customer.name}
+        </h3>
+        {customer.phone && (
+          <p className="text-xs text-gray-600 mt-1">
+            Ph: <span className="font-semibold">{formatPhone(customer.phone)}</span>
+          </p>
+        )}
+        {customer.address && (
+          <p className="text-xs text-gray-600 mt-1 font-semibold">
+            {customer.address}
+          </p>
+        )}
+      </div>
+
+      {/* Items Table */}
+      <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-white text-black font-bold text-[10px] uppercase tracking-wider">
+              <th className="text-center px-4 py-3.5 w-12">#</th>
+              <th className="text-left px-4 py-3.5">Item</th>
+              <th className="text-right px-4 py-3.5 w-24">Quantity</th>
+              <th className="text-right px-4 py-3.5 w-24">Weight</th>
+              <th className="text-right px-4 py-3.5 w-28">Amount</th>
+              <th className="text-right px-4 py-3.5 w-24">Discount</th>
+              <th className="text-right px-4 py-3.5 w-28">Final Value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 bg-white">
+            {items.map((item, idx) => {
+              const amount = item.qty * item.unit_price
+              return (
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="text-center px-4 py-3.5 text-gray-400 font-medium">{idx + 1}</td>
+                  <td className="px-4 py-3.5 font-bold text-slate-900">{item.product_name}</td>
+                  <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                    {item.qty} {item.unit}
+                  </td>
+                  <td className="text-right px-4 py-3.5 font-medium text-slate-500">
+                    {item.weight > 0 ? `${item.weight} kg` : '-'}
+                  </td>
+                  <td className="text-right px-4 py-3.5 font-bold text-slate-800">
+                    {showPrices ? formatCurrency(amount) : '***'}
+                  </td>
+                  <td className="text-right px-4 py-3.5 text-gray-400 font-medium">-</td>
+                  <td className="text-right px-4 py-3.5 font-black text-slate-950">
+                    {showPrices ? formatCurrency(amount) : '***'}
+                  </td>
+                </tr>
+              )
+            })}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-8 text-gray-400 italic">
+                  No items in this sale
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Footer / Grand Total Section */}
+      <div className="border-t-2 border-slate-900 pt-6 flex flex-col md:flex-row md:justify-between items-end gap-6">
+        <div className="space-y-1">
+          <p className="text-xs text-gray-500 font-bold uppercase">
+            Payment Method: <span className="text-slate-900 font-black">CASH</span>
+          </p>
+          <p className="text-xs text-gray-500 font-bold uppercase">
+            Total Items: <span className="text-slate-900 font-black">{items.length}</span>
+          </p>
+        </div>
+        <div className="w-full md:w-72 space-y-2 text-right">
+          {gstEnabled ? (
+            gstType === 'exclusive' ? (
+              <>
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span>Subtotal:</span>
+                  <span className="text-slate-800">
+                    {showPrices ? formatCurrency(subtotal) : '***'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span>GST ({gstPercentage}%):</span>
+                  <span className="text-slate-800 font-extrabold">
+                    {showPrices ? formatCurrency(gstAmount) : '***'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span>Taxable Value:</span>
+                  <span className="text-slate-800">
+                    {showPrices ? formatCurrency(taxableSubtotal) : '***'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span>GST Included ({gstPercentage}%):</span>
+                  <span className="text-slate-800 font-semibold">
+                    {showPrices ? formatCurrency(gstIncluded) : '***'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span>Subtotal:</span>
+                  <span className="text-slate-850">
+                    {showPrices ? formatCurrency(preRoundingTotal) : '***'}
+                  </span>
+                </div>
+              </>
+            )
+          ) : (
+            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+              <span>Subtotal:</span>
+              <span className="text-slate-800">
+                {showPrices ? formatCurrency(sale.total_amount) : '***'}
+              </span>
+            </div>
+          )}
+          
+          {roundingConfig && roundingConfig.enabled && discountInt !== 0 && (
+            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+              <span>Rounding Discount:</span>
+              <span className={discountInt > 0 ? 'text-emerald-600 font-extrabold' : 'text-rose-600 font-extrabold'}>
+                {discountInt > 0 ? '+' : ''}{showPrices ? formatCurrency(discountInt) : '***'}
+              </span>
+            </div>
+          )}
+          <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
+            <span className="text-sm font-black text-slate-500 uppercase tracking-wider">GRAND TOTAL</span>
+            <span className="text-3xl font-black text-slate-950 tracking-tighter">
+              {showPrices ? formatCurrency(finalInt) : '***'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function CustomerDetail() {
   const { id } = useParams()
@@ -14,10 +306,24 @@ export default function CustomerDetail() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Confirm dialog state
+  // Meta details for headers and rules
+  const [roundingConfig, setRoundingConfig] = useState(null)
+  const [shopName, setShopName] = useState('')
+  const [shopAddress, setShopAddress] = useState('')
+  const [shopPhone, setShopPhone] = useState('')
+
+  // GST Config States
+  const [gstEnabled, setGstEnabled] = useState(false)
+  const [gstNumber, setGstNumber] = useState('')
+  const [gstPercentage, setGstPercentage] = useState(18)
+  const [gstType, setGstType] = useState('exclusive')
+
+  // Confirm dialog and view bill states
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteSaleId, setDeleteSaleId] = useState(null)
   const [showPrices, setShowPrices] = useState(true)
+  const [activeBill, setActiveBill] = useState(null)
+  const [selectedSaleIds, setSelectedSaleIds] = useState([])
 
   useEffect(() => {
     async function checkPricePref() {
@@ -27,6 +333,41 @@ export default function CustomerDetail() {
     checkPricePref()
   }, [])
 
+  useEffect(() => {
+    async function loadMeta() {
+      const name = await ipc('meta:get', 'shop_name')
+      if (name) setShopName(name)
+
+      const addr = await ipc('meta:get', 'shop_address')
+      if (addr) setShopAddress(addr)
+
+      const phone = await ipc('meta:get', 'shop_phone')
+      if (phone) setShopPhone(phone)
+
+      const rulesVal = await ipc('meta:get', 'rounding_rules')
+      if (rulesVal) {
+        try {
+          setRoundingConfig(JSON.parse(rulesVal))
+        } catch (e) {
+          console.error('Failed to parse rounding rules:', e)
+        }
+      }
+
+      const gstEn = await ipc('meta:get', 'gst_enabled')
+      setGstEnabled(gstEn === 'true')
+
+      const gstNum = await ipc('meta:get', 'gst_number')
+      if (gstNum) setGstNumber(gstNum)
+
+      const gstPct = await ipc('meta:get', 'gst_percentage')
+      if (gstPct) setGstPercentage(parseFloat(gstPct) || 18)
+
+      const gstTy = await ipc('meta:get', 'gst_type')
+      if (gstTy) setGstType(gstTy)
+    }
+    loadMeta()
+  }, [])
+
   async function load() {
     setLoading(true)
     const [c, allSales, p] = await Promise.all([
@@ -34,14 +375,17 @@ export default function CustomerDetail() {
       ipc('sales:list', { limit: 1000 }), // Filter locally for simple ledger
       ipc('payments:by-customer', Number(id))
     ])
-    
+
     setCustomer(c)
     setSales((allSales || []).filter((s) => s.customer_id === Number(id)))
     setPayments(p || [])
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    setSelectedSaleIds([])
+    load()
+  }, [id])
 
   async function confirmDeleteSale(saleId) {
     setDeleteSaleId(saleId)
@@ -57,6 +401,12 @@ export default function CustomerDetail() {
 
   async function handleDownloadPDF() {
     await ipc('app:print-to-pdf', `Ledger_${customer.name.replace(/\s+/g, '_')}`)
+  }
+
+  async function handlePrintBill() {
+    if (!activeBill) return
+    const filename = `Bill_${customer.name.replace(/\s+/g, '_')}_#${activeBill.id}`
+    await ipc('app:print-to-pdf', filename)
   }
 
   if (loading) return (
@@ -87,101 +437,261 @@ export default function CustomerDetail() {
   })
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="print-only mb-6 border-b pb-4">
-        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Customer Ledger</h1>
-        <p className="text-xl font-bold mt-1 text-gray-700">{customer.name}</p>
-        <div className="flex gap-4 text-xs font-bold text-gray-400 mt-2 uppercase tracking-wider">
-          {customer.phone && <span>Phone: {formatPhone(customer.phone)}</span>}
-          {customer.address && <span>Address: {customer.address}</span>}
+    <div className="relative">
+      {/* Normal screen page content */}
+      <div className={`p-6 space-y-6 ${activeBill ? 'no-print' : ''}`}>
+        <div className="print-only mb-6 border-b pb-4">
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Customer Ledger</h1>
+          <p className="text-xl font-bold mt-1 text-gray-700">{customer.name}</p>
+          <div className="flex gap-4 text-xs font-bold text-gray-400 mt-2 uppercase tracking-wider">
+            {customer.phone && <span>Phone: {formatPhone(customer.phone)}</span>}
+            {customer.address && <span>Address: {customer.address}</span>}
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between no-print">
-        <Link to="/customers" className="flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Customers
-        </Link>
-        <button
-          onClick={handleDownloadPDF}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
-        >
-          <Download className="w-4 h-4" /> Download PDF
-        </button>
-      </div>
+        <div className="flex items-center justify-between no-print">
+          <Link to="/customers" className="flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to Customers
+          </Link>
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </button>
+        </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight no-print">{customer.name}</h1>
-            <div className="flex items-center gap-4 text-xs font-bold text-gray-400 mt-2 no-print uppercase tracking-wider">
-              {customer.phone && <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{formatPhone(customer.phone)}</span>}
-              {customer.address && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{customer.address}</span>}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black text-gray-900 tracking-tight no-print">{customer.name}</h1>
+              <div className="flex items-center gap-4 text-xs font-bold text-gray-400 mt-2 no-print uppercase tracking-wider">
+                {customer.phone && <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{formatPhone(customer.phone)}</span>}
+                {customer.address && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{customer.address}</span>}
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 min-w-[200px]">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
+              <p className={`text-2xl font-black tracking-tighter ${customer.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                {showPrices ? formatCurrency(customer.balance) : '***'}
+              </p>
             </div>
           </div>
-          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 min-w-[200px]">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
-            <p className={`text-2xl font-black tracking-tighter ${customer.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-              {showPrices ? formatCurrency(customer.balance) : '***'}
-            </p>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="font-black text-gray-900 text-sm uppercase tracking-widest">Transaction History</span>
+              {selectedSaleIds.length > 0 && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const saleObjects = await Promise.all(
+                        selectedSaleIds.map(id => ipc('sales:get', id))
+                      )
+
+                      const validSales = saleObjects.filter(Boolean)
+                      if (validSales.length === 0) {
+                        toast.error('Failed to load selected sale details')
+                        return
+                      }
+
+                      const combinedSale = {
+                        id: `Combined (${validSales.map(s => `#${s.id}`).join(', ')})`,
+                        total_amount: validSales.reduce((sum, s) => sum + s.total_amount, 0),
+                        date: validSales[0].date,
+                        created_at: new Date().toISOString(),
+                        items: validSales.flatMap(s => s.items || [])
+                      }
+
+                      setActiveBill(combinedSale)
+                    } catch (e) {
+                      toast.error('Failed to combine invoices')
+                      console.error(e)
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 no-print"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print Selected ({selectedSaleIds.length})
+                </button>
+              )}
+            </div>
+            <Link to={`/ledger?customer_id=${customer.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline uppercase tracking-wider no-print">
+              View in Ledger →
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="w-12 px-6 py-3 text-center no-print">
+                    <input
+                      type="checkbox"
+                      checked={sales.length > 0 && selectedSaleIds.length === sales.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSaleIds(sales.map(s => s.id))
+                        } else {
+                          setSelectedSaleIds([])
+                        }
+                      }}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                    />
+                  </th>
+                  <th className="text-left px-6 py-3">Date</th>
+                  <th className="text-left px-6 py-3">Description</th>
+                  <th className="text-right px-6 py-3">Amount</th>
+                  <th className="text-right px-6 py-3">Balance</th>
+                  <th className="text-center px-6 py-3 no-print">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <td className="w-12 px-6 py-4 text-center no-print">
+                      {r.type === 'sale' ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedSaleIds.includes(r.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSaleIds([...selectedSaleIds, r.id])
+                            } else {
+                              setSelectedSaleIds(selectedSaleIds.filter(id => id !== r.id))
+                            }
+                          }}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                        />
+                      ) : (
+                        <div className="w-4 h-4" />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
+                    <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
+                    <td className={`px-6 py-4 text-right font-bold ${r.amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {showPrices ? (r.amount > 0 ? formatCurrency(r.amount) : `-${formatCurrency(-r.amount)}`) : '***'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black tracking-tight text-gray-700">
+                      {showPrices ? formatCurrency(Math.abs(r.running)) : '***'}
+                      <span className="text-[10px] ml-1 uppercase">{r.running > 0 ? 'Dr' : 'Cr'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center no-print flex items-center justify-center gap-2">
+                      {r.type === 'sale' && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              const res = await ipc('sales:get', r.id)
+                              if (res) {
+                                setActiveBill(res)
+                              } else {
+                                toast.error('Failed to load bill details')
+                              }
+                            }}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Generate Bill"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDeleteSale(r.id)}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete Sale"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No transactions yet</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+
+        <ConfirmDialog
+          isOpen={confirmOpen}
+          title="Delete Sale?"
+          message="This will reverse the sale, return items to stock, and update the customer balance. Are you sure?"
+          onConfirm={handleDeleteSale}
+          onCancel={() => setConfirmOpen(false)}
+          confirmText="Delete Sale"
+        />
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <span className="font-black text-gray-900 text-sm uppercase tracking-widest">Transaction History</span>
-          <Link to={`/ledger?customer_id=${customer.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline uppercase tracking-wider no-print">
-            View in Ledger →
-          </Link>
+      {/* Printable Bill Section */}
+      {activeBill && (
+        <div className="print-only">
+          <BillInvoice
+            sale={activeBill}
+            customer={customer}
+            showPrices={showPrices}
+            roundingConfig={roundingConfig}
+            shopName={shopName}
+            shopAddress={shopAddress}
+            shopPhone={shopPhone}
+            gstEnabled={gstEnabled}
+            gstNumber={gstNumber}
+            gstPercentage={gstPercentage}
+            gstType={gstType}
+          />
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="text-left px-6 py-3">Date</th>
-                <th className="text-left px-6 py-3">Description</th>
-                <th className="text-right px-6 py-3">Amount</th>
-                <th className="text-right px-6 py-3">Balance</th>
-                <th className="text-center px-6 py-3 no-print">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
-                  <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
-                  <td className={`px-6 py-4 text-right font-bold ${r.amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {showPrices ? (r.amount > 0 ? formatCurrency(r.amount) : `-${formatCurrency(-r.amount)}`) : '***'}
-                  </td>
-                  <td className="px-6 py-4 text-right font-black tracking-tight text-gray-700">
-                    {showPrices ? formatCurrency(Math.abs(r.running)) : '***'}
-                    <span className="text-[10px] ml-1 uppercase">{r.running > 0 ? 'Dr' : 'Cr'}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center no-print">
-                    {r.type === 'sale' && (
-                      <button onClick={() => confirmDeleteSale(r.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-12 text-gray-400 italic">No transactions yet</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
 
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        title="Delete Sale?"
-        message="This will reverse the sale, return items to stock, and update the customer balance. Are you sure?"
-        onConfirm={handleDeleteSale}
-        onCancel={() => setConfirmOpen(false)}
-        confirmText="Delete Sale"
-      />
+      {/* Modal Preview on Screen */}
+      {activeBill && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print overflow-y-auto backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-150 flex items-center justify-between bg-slate-50">
+              <h3 className="font-extrabold text-slate-800 text-base uppercase tracking-wider flex items-center gap-2">
+                <Printer className="w-4 h-4 text-blue-600" /> Invoice Preview
+              </h3>
+              <button
+                onClick={() => setActiveBill(null)}
+                className="text-gray-400 hover:text-slate-700 font-bold transition-all px-2.5 py-1 rounded-lg hover:bg-gray-250/50"
+              >
+                ✕ Close
+              </button>
+            </div>
+            {/* Scrollable Bill Content */}
+            <div className="p-8 overflow-y-auto flex-1 bg-slate-100/50">
+              <BillInvoice
+                sale={activeBill}
+                customer={customer}
+                showPrices={showPrices}
+                roundingConfig={roundingConfig}
+                shopName={shopName}
+                shopAddress={shopAddress}
+                shopPhone={shopPhone}
+                gstEnabled={gstEnabled}
+                gstNumber={gstNumber}
+                gstPercentage={gstPercentage}
+                gstType={gstType}
+              />
+            </div>
+            {/* Modal Actions */}
+            <div className="px-6 py-4 border-t border-gray-150 flex justify-end gap-3 bg-white">
+              <button
+                onClick={() => setActiveBill(null)}
+                className="px-4 py-2 border border-gray-250 text-gray-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrintBill}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" /> Print / Save PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

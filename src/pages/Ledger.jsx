@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw } from 'lucide-react'
+import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw, Printer } from 'lucide-react'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -12,11 +12,11 @@ const LIMIT = 20
 
 export default function Ledger() {
   const [searchParams, setSearchParams] = useSearchParams()
-  
+
   // Filter States
   const [customers, setCustomers] = useState([])
   const [customerId, setCustomerId] = useState(searchParams.get('customer_id') || '')
-  
+
   // Default date range: current calendar month
   const getDefaultDateRange = () => {
     const today = new Date()
@@ -24,19 +24,49 @@ export default function Ledger() {
     const lastDay = today.toISOString().slice(0, 10) // or end of month, but today is cleaner
     return { from: firstDay, to: lastDay }
   }
-  
+
   const initialDates = getDefaultDateRange()
   const [dateFrom, setDateFrom] = useState(initialDates.from)
   const [dateTo, setDateTo] = useState(initialDates.to)
-  const [type, setType] = useState('all') // 'all', 'sale', 'payment'
-  
+  const [datePreset, setDatePreset] = useState('current_month')
+
+  const handlePresetChange = (preset) => {
+    setDatePreset(preset)
+    const today = new Date()
+    const year = today.getFullYear()
+    
+    if (preset === 'current_month') {
+      const firstDay = new Date(year, today.getMonth(), 1).toISOString().slice(0, 10)
+      const lastDay = today.toISOString().slice(0, 10)
+      setDateFrom(firstDay)
+      setDateTo(lastDay)
+    } else if (preset === 'custom') {
+      // Keep custom dates
+    } else {
+      const monthMap = {
+        january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+        july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+      }
+      const monthIdx = monthMap[preset]
+      if (monthIdx !== undefined) {
+        const firstDay = new Date(year, monthIdx, 1).toISOString().slice(0, 10)
+        const lastDay = new Date(year, monthIdx + 1, 0).toISOString().slice(0, 10)
+        setDateFrom(firstDay)
+        setDateTo(lastDay)
+      }
+    }
+    setPage(1)
+  }
+
+  const [type, setType] = useState('sale') // 'all', 'sale', 'payment'
+
   // Data States
   const [entries, setEntries] = useState([])
   const [summary, setSummary] = useState({ total_sales: 0, total_payments: 0, net_outstanding: 0, entry_count: 0 })
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
-  
+
   // Dialog States
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null) // { id, type }
@@ -117,7 +147,7 @@ export default function Ledger() {
   useEffect(() => {
     const paramCustId = searchParams.get('customer_id')
     const paramDate = searchParams.get('date')
-    
+
     if (paramCustId) {
       setCustomerId(paramCustId)
     }
@@ -179,6 +209,7 @@ export default function Ledger() {
 
   const handleClearFilters = () => {
     setCustomerId('')
+    setDatePreset('current_month')
     const defaults = getDefaultDateRange()
     setDateFrom(defaults.from)
     setDateTo(defaults.to)
@@ -196,7 +227,7 @@ export default function Ledger() {
   const handleDelete = async () => {
     if (!deleteTarget) return
     const { id, type: entryType } = deleteTarget
-    
+
     setConfirmOpen(false)
     try {
       if (entryType === 'sale') {
@@ -219,6 +250,24 @@ export default function Ledger() {
     const range = `${dateFrom}_to_${dateTo}`
     await ipc('app:print-to-pdf', `Ledger_${range}`)
   }
+
+  // Calculate visible page column totals
+  let pageDebit = 0
+  let pageCredit = 0
+  let pageDiscount = 0
+  let pageFinalValue = 0
+
+  entries.forEach((entry) => {
+    const isSale = entry.type === 'sale'
+    if (isSale) {
+      pageDebit += entry.amount
+      const { discountInt, finalInt } = applyRounding(entry.amount, roundingConfig)
+      pageDiscount += discountInt
+      pageFinalValue += finalInt
+    } else {
+      pageCredit += -entry.amount
+    }
+  })
 
   return (
     <div className="p-6 space-y-6">
@@ -259,44 +308,73 @@ export default function Ledger() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {customerId && (
+              <Link
+                to={`/customers/${customerId}`}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 mt-2 no-print"
+                title="Go to customer profile to generate or print bills"
+              >
+                <Printer className="w-3.5 h-3.5 shrink-0" /> Print bills from customer section →
+              </Link>
+            )}
           </div>
 
-          {/* Date range filters */}
+          {/* Date Period preset select */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date From</label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => handleFilterChange(() => setDateFrom(e.target.value))}
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date To</label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => handleFilterChange(() => setDateTo(e.target.value))}
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Action buttons (Clear) */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleClearFilters}
-              className="flex-1 py-2 px-4 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date Period</label>
+            <select
+              value={datePreset}
+              onChange={(e) => handlePresetChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white font-semibold text-slate-800"
             >
-              Clear Filters
-            </button>
+              <option value="current_month">Current Month</option>
+              <option value="custom">Custom Dates...</option>
+              <option disabled>──────────</option>
+              <option value="january">January</option>
+              <option value="february">February</option>
+              <option value="march">March</option>
+              <option value="april">April</option>
+              <option value="may">May</option>
+              <option value="june">June</option>
+              <option value="july">July</option>
+              <option value="august">August</option>
+              <option value="september">September</option>
+              <option value="october">October</option>
+              <option value="november">November</option>
+              <option value="december">December</option>
+            </select>
           </div>
+
+          {/* Date range filters (Rendered only for Custom Dates Preset) */}
+          {datePreset === 'custom' && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date From</label>
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => handleFilterChange(() => setDateFrom(e.target.value))}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date To</label>
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => handleFilterChange(() => setDateTo(e.target.value))}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Type toggle buttons */}
@@ -308,18 +386,26 @@ export default function Ledger() {
                 <button
                   key={t}
                   onClick={() => handleFilterChange(() => setType(t))}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                    type === t
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${type === t
                       ? 'bg-white text-gray-900 shadow-sm'
                       : 'text-gray-500 hover:text-gray-800'
-                  }`}
+                    }`}
                 >
                   {t === 'all' ? 'All' : t === 'sale' ? 'Sales' : 'Payments'}
                 </button>
               ))}
             </div>
           </div>
-          
+
+          <div className="flex items-center gap-3 no-print">
+            <button
+              onClick={handleClearFilters}
+              className="py-1.5 px-4 border border-gray-200 text-gray-650 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors uppercase tracking-wider shadow-sm"
+            >
+              Clear Filters
+            </button>
+          </div>
+
           {loading && (
             <div className="flex items-center gap-1.5 text-xs text-gray-400 italic">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Syncing view...
@@ -328,60 +414,7 @@ export default function Ledger() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Total Sales (debit aggregate) */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4 transition-all hover:border-orange-200">
-          <div className="p-3.5 rounded-xl bg-orange-500 text-white shadow-sm flex-shrink-0">
-            <BookOpen className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Total Sales (Dr)">Total Sales (Dr)</p>
-            <p className="text-lg sm:text-xl font-black text-orange-600 tracking-tighter truncate" title={showPrices ? formatCurrency(summary.total_sales) : '***'}>{showPrices ? formatCurrency(summary.total_sales) : '***'}</p>
-          </div>
-        </div>
 
-        {/* Total Payments (credit aggregate) */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4 transition-all hover:border-green-200">
-          <div className="p-3.5 rounded-xl bg-emerald-500 text-white shadow-sm flex-shrink-0">
-            <Users className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Total Payments (Cr)">Total Payments (Cr)</p>
-            <p className="text-lg sm:text-xl font-black text-green-600 tracking-tighter truncate" title={showPrices ? formatCurrency(summary.total_payments) : '***'}>{showPrices ? formatCurrency(summary.total_payments) : '***'}</p>
-          </div>
-        </div>
-
-        {/* Net Outstanding balance */}
-        <div className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4 transition-all ${
-          summary.net_outstanding > 0 ? 'hover:border-red-200' : 'hover:border-blue-200'
-        }`}>
-          <div className={`p-3.5 rounded-xl shadow-sm text-white flex-shrink-0 ${
-            summary.net_outstanding > 0 ? 'bg-rose-500' : 'bg-blue-600'
-          }`}>
-            <RefreshCw className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Net Outstanding">Net Outstanding</p>
-            <p className={`text-lg sm:text-xl font-black tracking-tighter truncate ${
-              summary.net_outstanding > 0 ? 'text-red-600' : 'text-blue-600'
-            }`} title={showPrices ? formatCurrency(summary.net_outstanding) : '***'}>
-              {showPrices ? formatCurrency(summary.net_outstanding) : '***'}
-            </p>
-          </div>
-        </div>
-
-        {/* Entries Count */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4 transition-all hover:border-gray-300">
-          <div className="p-3.5 rounded-xl bg-gray-500 text-white shadow-sm flex-shrink-0">
-            <Calendar className="w-6 h-6" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 truncate" title="Total Entries">Total Entries</p>
-            <p className="text-lg sm:text-xl font-black text-gray-800 tracking-tighter truncate" title={summary.entry_count}>{summary.entry_count}</p>
-          </div>
-        </div>
-      </div>
 
       {/* Ledger Table */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
@@ -415,7 +448,7 @@ export default function Ledger() {
                 <>
                   {entries.map((entry, idx) => {
                     const isSale = entry.type === 'sale'
-                    
+
                     // Calculate rounding/discount for sale amount
                     let discountInt = 0
                     let finalInt = 0
@@ -434,11 +467,10 @@ export default function Ledger() {
                           </Link>
                         </td>
                         <td className="px-6 py-4 text-center whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                            isSale 
-                              ? 'bg-orange-50 text-orange-700 border border-orange-100' 
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isSale
+                              ? 'bg-orange-50 text-orange-700 border border-orange-100'
                               : 'bg-green-50 text-green-700 border border-green-100'
-                          }`}>
+                            }`}>
                             {entry.type}
                           </span>
                         </td>
@@ -503,10 +535,48 @@ export default function Ledger() {
                   )}
                 </>
               )}
-            </tbody>
+              </tbody>
+              {!loading && entries.length > 0 && (
+                <tfoot className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
+                  <tr className="bg-slate-55 hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-slate-800 font-black whitespace-nowrap">Total (Page)</td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4 text-right font-black text-orange-600 whitespace-nowrap">
+                      {showPrices ? formatCurrency(pageDebit) : '***'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-green-600 whitespace-nowrap">
+                      {showPrices ? formatCurrency(pageCredit) : '***'}
+                    </td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap font-black">
+                      {showPrices ? (
+                        pageDiscount < 0 ? (
+                          <span className="text-red-500">
+                            {formatCurrency(pageDiscount)}
+                          </span>
+                        ) : pageDiscount > 0 ? (
+                          <span className="text-emerald-600">
+                            +{formatCurrency(pageDiscount)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 font-medium">-</span>
+                        )
+                      ) : (
+                        '***'
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-slate-950 whitespace-nowrap">
+                      {showPrices ? formatCurrency(pageFinalValue) : '***'}
+                    </td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4 no-print"></td>
+                  </tr>
+                </tfoot>
+              )}
           </table>
         </div>
-        
+
         {/* Pagination */}
         {!loading && totalPages > 1 && (
           <div className="no-print border-t border-gray-100">

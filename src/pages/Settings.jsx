@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins } from 'lucide-react'
+import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Percent } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [config, setConfig] = useState({
     shop_name: '',
+    shop_address: '',
+    shop_phone: '',
     currency_symbol: '₹',
     show_price_dashboard: 'true',
     show_price_customers: 'true',
     show_price_payments: 'true',
     show_price_ledger: 'true',
     layout_size: 'normal',
+    gst_enabled: 'false',
+    gst_number: '',
+    gst_percentage: '18',
+    gst_type: 'exclusive',
   })
 
   // Rounding Rules State
@@ -33,12 +39,18 @@ export default function Settings() {
     async function load() {
       const keys = [
         'shop_name', 
+        'shop_address',
+        'shop_phone',
         'currency_symbol', 
         'show_price_dashboard', 
         'show_price_customers', 
         'show_price_payments', 
         'show_price_ledger',
-        'layout_size'
+        'layout_size',
+        'gst_enabled',
+        'gst_number',
+        'gst_percentage',
+        'gst_type'
       ]
       const newConfig = { ...config }
       for (const key of keys) {
@@ -163,6 +175,25 @@ export default function Settings() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Shop Address</label>
+              <textarea
+                value={config.shop_address}
+                onChange={(e) => setConfig({ ...config, shop_address: e.target.value })}
+                placeholder="e.g. 123 Main Street, Business Plaza"
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Shop Mobile / Phone</label>
+              <input
+                value={config.shop_phone}
+                onChange={(e) => setConfig({ ...config, shop_phone: e.target.value })}
+                placeholder="e.g. +91 98765 43210"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Currency Symbol</label>
               <input
                 value={config.currency_symbol}
@@ -170,6 +201,92 @@ export default function Settings() {
                 placeholder="e.g. ₹ or $"
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* GST Configuration */}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-gray-800">
+              <Percent className="w-4 h-4 text-emerald-500" /> GST Configuration
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.gst_enabled === 'true'}
+                onChange={(e) => setConfig({ ...config, gst_enabled: e.target.checked ? 'true' : 'false' })}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+          <div className={`p-5 space-y-4 transition-opacity ${config.gst_enabled === 'true' ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">GST Number</label>
+                <input
+                  value={config.gst_number || ''}
+                  onChange={(e) => setConfig({ ...config, gst_number: e.target.value.toUpperCase() })}
+                  placeholder="e.g. 22AAAAA1111A1Z1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={config.gst_percentage || ''}
+                  onChange={(e) => setConfig({ ...config, gst_percentage: e.target.value })}
+                  placeholder="e.g. 18"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+            
+            <div className="pt-3 space-y-2">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">GST Calculation Method</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${
+                  config.gst_type === 'exclusive' 
+                    ? 'border-blue-600 bg-blue-50/50 text-blue-700' 
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                }`}>
+                  <input
+                    type="radio"
+                    name="gst_type"
+                    value="exclusive"
+                    checked={config.gst_type === 'exclusive'}
+                    onChange={(e) => setConfig({ ...config, gst_type: e.target.value })}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <div>
+                    <p className="text-sm font-bold">Exclusive GST</p>
+                    <p className="text-[10px] opacity-75 font-semibold mt-0.5">Add GST over the total items price</p>
+                  </div>
+                </label>
+
+                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${
+                  config.gst_type === 'inclusive' 
+                    ? 'border-blue-600 bg-blue-50/50 text-blue-700' 
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                }`}>
+                  <input
+                    type="radio"
+                    name="gst_type"
+                    value="inclusive"
+                    checked={config.gst_type === 'inclusive'}
+                    onChange={(e) => setConfig({ ...config, gst_type: e.target.value })}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <div>
+                    <p className="text-sm font-bold">Inclusive GST</p>
+                    <p className="text-[10px] opacity-75 font-semibold mt-0.5">GST is already adjusted inside the total price</p>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
         </div>
