@@ -8,7 +8,6 @@ import {
   AlertTriangle, 
   TrendingUp, 
   Calendar, 
-  Download, 
   TrendingDown,
   Layers
 } from 'lucide-react'
@@ -153,10 +152,6 @@ export default function Dashboard() {
     }
   }
 
-  // PDF download action
-  async function handleDownloadPDF() {
-    await ipc('app:print-to-pdf', `Dashboard_Report_${dates.start}_to_${dates.end}`)
-  }
 
   // Group low volume chart data into "Others" to maintain chart beauty
   const groupChartData = (dataList, maxItems = 5) => {
@@ -235,13 +230,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* PDF Report trigger */}
-          <button
-            onClick={handleDownloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-sm hover:bg-gray-800 transition-all active:scale-[0.98]"
-          >
-            <Download className="w-4 h-4" /> Download Report PDF
-          </button>
         </div>
       </div>
 

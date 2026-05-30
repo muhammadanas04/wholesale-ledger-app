@@ -12,6 +12,7 @@ export default function Settings() {
     show_price_customers: 'true',
     show_price_payments: 'true',
     show_price_ledger: 'true',
+    layout_size: 'normal',
   })
 
   // Sync config state
@@ -29,7 +30,8 @@ export default function Settings() {
         'show_price_dashboard', 
         'show_price_customers', 
         'show_price_payments', 
-        'show_price_ledger'
+        'show_price_ledger',
+        'layout_size'
       ]
       const newConfig = { ...config }
       for (const key of keys) {
@@ -57,6 +59,15 @@ export default function Settings() {
       for (const [key, value] of Object.entries(config)) {
         await ipc('meta:set', key, value)
       }
+      
+      // Instantly apply dynamic layout scaling
+      const sizeMap = {
+        normal: '16px',
+        large: '18px',
+        xl: '20px'
+      }
+      document.documentElement.style.fontSize = sizeMap[config.layout_size] || '16px'
+
       toast.success('Settings saved successfully')
     } catch (err) {
       toast.error('Failed to save settings')
@@ -132,10 +143,10 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Price Display Preferences */}
+        {/* Display & Layout Preferences */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
-            <SettingsIcon className="w-4 h-4 text-violet-500" /> Price Display Preferences
+            <SettingsIcon className="w-4 h-4 text-violet-500" /> Display & Layout Preferences
           </div>
           <div className="p-5 space-y-4">
             <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Select which sections should display prices/balances:</p>
@@ -192,6 +203,29 @@ export default function Settings() {
                   <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show Debit / Credit account logs</p>
                 </div>
               </label>
+            </div>
+
+            <div className="pt-5 border-t border-gray-100 space-y-3">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Application Layout Scale (Overall Size)</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Adjust the overall font and spacing scale of the application interface:</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {['normal', 'large', 'xl'].map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setConfig({ ...config, layout_size: sz })}
+                    className={`flex-1 py-3 px-4 border rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                      config.layout_size === sz
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-black shadow-sm'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    {sz === 'normal' ? 'Normal (100%)' : sz === 'large' ? 'Large (112%)' : 'Extra Large (125%)'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

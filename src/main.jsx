@@ -14,9 +14,23 @@ import StockPurchase from './pages/StockPurchase'
 import Payments from './pages/Payments'
 import Ledger from './pages/Ledger'
 import Settings from './pages/Settings'
+import { ipc } from './lib/ipc'
 
 function App() {
   const navigate = useNavigate()
+
+  useEffect(() => {
+    async function loadLayoutSize() {
+      const size = await ipc('meta:get', 'layout_size')
+      const sizeMap = {
+        normal: '16px',
+        large: '18px',
+        xl: '20px'
+      }
+      document.documentElement.style.fontSize = sizeMap[size] || '16px'
+    }
+    loadLayoutSize()
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
