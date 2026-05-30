@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Wifi, WifiOff, Clock, RefreshCw, ArrowUpCircle, AlertCircle } from 'lucide-react'
+import { Wifi, WifiOff, Clock, RefreshCw, ArrowUpCircle, AlertCircle, CloudOff } from 'lucide-react'
 import { ipc } from '../lib/ipc'
 import { toast } from 'sonner'
+import { formatDateTime } from '../lib/formatters'
 
 export default function TopBar() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [syncStatus, setSyncStatus] = useState('online')
   const [lastSync, setLastSync] = useState(null)
   const [syncError, setSyncError] = useState(null)
+  const [syncConfigured, setSyncConfigured] = useState(true)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
 
@@ -17,13 +19,17 @@ export default function TopBar() {
     window.addEventListener('online', on)
     window.addEventListener('offline', off)
 
-    const syncHandler = (event, data) => {
+    const syncHandler = (data) => {
       setSyncStatus(data.status)
       if (data.lastSync) setLastSync(data.lastSync)
-      if (data.status === 'error') {
+      if (data.status === 'not-configured') {
+        setSyncConfigured(false)
+        setSyncError(null)
+      } else if (data.status === 'error') {
         setSyncError(data.error)
         toast.error(`Sync failed: ${data.error}`)
       } else {
+        setSyncConfigured(true)
         setSyncError(null)
       }
     }
@@ -40,6 +46,10 @@ export default function TopBar() {
       window.electronAPI.on('app:update-downloaded', updateDownloadedHandler)
     }
 
+    // Check initial sync config status
+    ipc('sync:get-config').then((config) => {
+      if (config) setSyncConfigured(config.configured)
+    })
     ipc('meta:get', 'last_sync_time').then(setLastSync)
 
     return () => {
@@ -58,6 +68,13 @@ export default function TopBar() {
     if (window.electronAPI) {
       window.electronAPI.send('app:restart-and-install')
     }
+  }
+
+  function getSyncLabel() {
+    if (!syncConfigured) return 'Sync not configured'
+    if (syncStatus === 'syncing') return 'Syncing...'
+    if (lastSync) return `Last sync: ${formatDateTime(lastSync)}`
+    return 'Never synced'
   }
 
   return (
@@ -96,19 +113,21 @@ export default function TopBar() {
         <span className="w-px h-3 bg-gray-200" />
         
         <div className="flex items-center gap-1.5">
-          {syncStatus === 'syncing' ? (
+          {!syncConfigured ? (
+            <CloudOff className="w-3.5 h-3.5 text-gray-300" />
+          ) : syncStatus === 'syncing' ? (
             <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />
           ) : (
             <Clock className="w-3.5 h-3.5 text-gray-400" />
           )}
-          <span>{syncStatus === 'syncing' ? 'Syncing...' : (lastSync ? `Last sync: ${lastSync}` : 'Never synced')}</span>
+          <span>{getSyncLabel()}</span>
         </div>
 
         <button 
           onClick={handleSync}
-          disabled={syncStatus === 'syncing' || !isOnline}
+          disabled={syncStatus === 'syncing' || !isOnline || !syncConfigured}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
-          title="Sync Now"
+          title={syncConfigured ? 'Sync Now' : 'Configure sync in Settings'}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
         </button>
@@ -116,3 +135,4 @@ export default function TopBar() {
     </header>
   )
 }
+

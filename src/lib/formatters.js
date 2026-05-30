@@ -23,3 +23,30 @@ export const formatDate = (dateString) => {
     year: 'numeric',
   })
 }
+
+export const formatDateTime = (utcString) => {
+  if (!utcString) return ''
+  let date
+  if (utcString.includes('T')) {
+    date = new Date(utcString)
+  } else {
+    // SQLite UTC format is 'YYYY-MM-DD HH:MM:SS'. Make it ISO by adding T and Z.
+    const isoString = utcString.replace(' ', 'T') + 'Z'
+    date = new Date(isoString)
+  }
+
+  if (isNaN(date.getTime())) {
+    return utcString
+  }
+
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
+
