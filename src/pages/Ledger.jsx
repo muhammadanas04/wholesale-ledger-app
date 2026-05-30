@@ -70,20 +70,21 @@ export default function Ledger() {
     return 10
   }
 
-  // Apply dynamic rounding based on user rules (unified ceil/floor logic)
+  // Apply rounding based on ceil/floor rules
   function applyRounding(amountInt, config) {
-    if (typeof amountInt !== 'number' || isNaN(amountInt) || !config) {
-      return { discountInt: 0, finalInt: amountInt }
-    }
-
-    const { rules } = config
-    if (!Array.isArray(rules) || rules.length === 0) {
+    if (typeof amountInt !== 'number' || isNaN(amountInt) || !config || !config.enabled) {
       return { discountInt: 0, finalInt: amountInt }
     }
 
     const isNegative = amountInt < 0
     const absVal = Math.abs(amountInt)
     const amountDecimal = absVal / 100
+
+    // Try each rule: ceil first, then floor
+    const rules = [
+      { ...config.ceil, action: 'ceil' },
+      { ...config.floor, action: 'floor' }
+    ]
 
     for (const rule of rules) {
       const fromVal = parseFloat(rule.from)
@@ -97,10 +98,8 @@ export default function Ledger() {
       if (relevantPart >= fromVal - eps && relevantPart <= toVal + eps) {
         let finalDecimal
         if (rule.action === 'ceil') {
-          // Ceil: drop matched portion to 0
           finalDecimal = amountDecimal - relevantPart
         } else {
-          // Floor: drop matched portion to 0, add carry (modulus)
           finalDecimal = amountDecimal - relevantPart + modulus
         }
 
@@ -417,12 +416,11 @@ export default function Ledger() {
                   {entries.map((entry, idx) => {
                     const isSale = entry.type === 'sale'
                     
-                    // Calculate rounding/discount for payment received
+                    // Calculate rounding/discount for sale amount
                     let discountInt = 0
                     let finalInt = 0
-                    if (!isSale) {
-                      const absOriginal = -entry.amount
-                      const result = applyRounding(absOriginal, roundingConfig)
+                    if (isSale) {
+                      const result = applyRounding(entry.amount, roundingConfig)
                       discountInt = result.discountInt
                       finalInt = result.finalInt
                     }
@@ -459,7 +457,7 @@ export default function Ledger() {
                           {!isSale ? (showPrices ? formatCurrency(-entry.amount) : '***') : '-'}
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                          {!isSale ? (
+                          {isSale ? (
                             showPrices ? (
                               discountInt < 0 ? (
                                 <span className="font-bold text-red-500">
@@ -480,7 +478,7 @@ export default function Ledger() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                          {!isSale ? (showPrices ? formatCurrency(finalInt) : '***') : '-'}
+                          {isSale ? (showPrices ? formatCurrency(finalInt) : '***') : '-'}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}
