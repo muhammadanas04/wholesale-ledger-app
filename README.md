@@ -25,5 +25,23 @@ Use these shortcuts to navigate faster:
 ## Cloud Sync
 The app works offline by default. If you have configured a Cloudflare D1 sync worker in **Settings**, the app will automatically synchronize your data every 5 minutes. You can also trigger a manual sync using the refresh icon in the top header.
 
+### Sync Key
+- Add environment variable in Cloudflare worker settings:
+
+```
+SYNC_SECRET=your-secret-key
+```
+
+- Create a base64 encoded string: 
+
+```
+echo -n "WORKER_URL|SYNC_SECRET" | base64
+```
+
+The above key is your secret key.
+
+- Add the encoded string to the **Settings** page.
+
 ## Exporting to PDF
 On the **Reports**, **Ledger**, and **Customer Detail** pages, click the "Download PDF" or "Print Ledger" button to save a clean, professional document for your records or to share with customers.
+

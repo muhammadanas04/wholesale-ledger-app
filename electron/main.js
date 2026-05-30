@@ -1,13 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
-
-// Load .env from project root (dev) or from app resources / userData (packaged)
-const envPath = app.isPackaged
-  ? path.join(app.getPath('userData'), '.env')
-  : path.join(__dirname, '..', '.env')
-require('dotenv').config({ path: envPath })
 const { autoUpdater } = require('electron-updater')
-const { initDatabase } = require('./db')
+const { initDatabase, getMeta } = require('./db')
 const { registerIpcHandlers } = require('./ipc')
 const { startSync } = require('./sync')
 
@@ -33,7 +27,7 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 
-  // Auto-updater events
+  // Auto-updater events (public GitHub repo — no token needed)
   try {
     autoUpdater.on('update-available', () => {
       mainWindow.webContents.send('app:update-available')
@@ -43,7 +37,7 @@ function createWindow() {
       mainWindow.webContents.send('app:update-downloaded')
     })
 
-    if (app.isPackaged && process.env.GH_TOKEN) {
+    if (app.isPackaged) {
       autoUpdater.checkForUpdatesAndNotify()
     }
   } catch (e) {
@@ -63,7 +57,13 @@ app.whenReady().then(() => {
   initDatabase()
   registerIpcHandlers()
   createWindow()
-  startSync()
+
+  // Only start sync if sync config exists
+  const syncUrl = getMeta('sync_url')
+  const syncToken = getMeta('sync_token')
+  if (syncUrl && syncToken) {
+    startSync()
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

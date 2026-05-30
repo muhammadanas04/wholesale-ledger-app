@@ -2,7 +2,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const auth = request.headers.get('Authorization')
-    const SECRET = env.SYNC_SECRET || 'wholesale-sync-token-2026'
+    const SECRET = env.SYNC_SECRET
+
+    if (!SECRET) {
+      return new Response('Server misconfigured — SYNC_SECRET not set', { status: 500 })
+    }
 
     if (auth !== `Bearer ${SECRET}`) {
       return new Response('Unauthorized', { status: 401 })
@@ -18,7 +22,8 @@ export default {
         const { results: rows } = await env.DB.prepare(
           `SELECT * FROM ${table} WHERE updated_at > ?`
         ).bind(since).all()
-        results[table] = rows
+        // Strip the 'synced' column — it's a local-only tracking field
+        results[table] = rows.map(({ synced, ...rest }) => rest)
       }
 
       return new Response(JSON.stringify(results), {

@@ -11,6 +11,13 @@ async function startSync() {
   runSyncCycle()
 }
 
+function stopSync() {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout)
+    syncTimeout = null
+  }
+}
+
 function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT_MS) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -29,11 +36,12 @@ async function runSyncCycle() {
   try {
     const db = getDatabase()
     const lastSync = getMeta('last_sync_time') || '1970-01-01 00:00:00'
-    const workerUrl = process.env.WORKER_URL
-    const secret = process.env.SYNC_TOKEN
+    const workerUrl = getMeta('sync_url')
+    const secret = getMeta('sync_token')
 
     if (!workerUrl || !secret) {
-      throw new Error('Sync not configured — set WORKER_URL and SYNC_TOKEN in .env file')
+      notifyRenderer({ status: 'not-configured' })
+      return
     }
 
     // ── 1. PULL ──────────────────────────────────────────────────
@@ -50,7 +58,8 @@ async function runSyncCycle() {
       for (const table of tables) {
         const rows = remoteData[table] || []
         for (const row of rows) {
-          const columns = Object.keys(row)
+          // Exclude 'synced' — it's a local-only tracking field
+          const columns = Object.keys(row).filter(k => k !== 'synced')
           const placeholders = columns.map(() => '?').join(', ')
           const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
           
@@ -60,6 +69,14 @@ async function runSyncCycle() {
             ON CONFLICT(id) DO UPDATE SET ${updates}
             WHERE EXCLUDED.updated_at > ${table}.updated_at
           `).run(...columns.map(c => row[c]))
+        }
+        // Mark pulled records as synced so they aren't re-pushed
+        if (rows.length > 0) {
+          const ids = rows.map(r => r.id).filter(id => id != null)
+          if (ids.length > 0) {
+            const placeholders = ids.map(() => '?').join(', ')
+            db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+          }
         }
       }
     })()
@@ -130,4 +147,5 @@ function notifyRenderer(data) {
   }
 }
 
-module.exports = { startSync, runSyncCycle }
+module.exports = { startSync, stopSync, runSyncCycle }
+

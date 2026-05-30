@@ -70,6 +70,47 @@ function registerIpcHandlers() {
   // ── Sync ───────────────────────────────────────────────────────
   ipcMain.handle('sync:run', wrap(() => sync.runSyncCycle()))
 
+  // ── Sync Config ────────────────────────────────────────────────
+  ipcMain.handle('sync:get-config', wrap(() => {
+    const syncUrl = db.getMeta('sync_url')
+    const syncToken = db.getMeta('sync_token')
+    return {
+      configured: !!(syncUrl && syncToken),
+      syncUrl: syncUrl || null,
+    }
+  }))
+
+  ipcMain.handle('sync:save-config', wrap((_e, syncKey) => {
+    // Decode base64 sync key: "url|token"
+    let decoded
+    try {
+      decoded = Buffer.from(syncKey.trim(), 'base64').toString('utf-8')
+    } catch {
+      throw new Error('Invalid sync key — could not decode')
+    }
+
+    const parts = decoded.split('|')
+    if (parts.length !== 2 || !parts[0].startsWith('http') || !parts[1]) {
+      throw new Error('Invalid sync key format')
+    }
+
+    const [syncUrl, syncToken] = parts
+    db.setMeta('sync_url', syncUrl.trim())
+    db.setMeta('sync_token', syncToken.trim())
+
+    // Start syncing immediately
+    sync.startSync()
+
+    return { configured: true, syncUrl: syncUrl.trim() }
+  }))
+
+  ipcMain.handle('sync:clear-config', wrap(() => {
+    sync.stopSync()
+    db.setMeta('sync_url', '')
+    db.setMeta('sync_token', '')
+    return { configured: false }
+  }))
+
   // ── Meta / Settings ────────────────────────────────────────────
   ipcMain.handle('meta:get', wrap((_e, key) => db.getMeta(key)))
   ipcMain.handle('meta:set', wrap((_e, key, value) => db.setMeta(key, value)))
