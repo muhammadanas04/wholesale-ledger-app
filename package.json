@@ -1,6 +1,6 @@
 {
   "name": "wholesale-ledger",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Desktop wholesale ledger app — offline-first with Cloudflare D1 sync",
   "main": "electron/main.js",
   "scripts": {
