@@ -19,12 +19,13 @@ function getModulus(from, to) {
 
 // Apply rounding based on ceil/floor rules
 function applyRounding(amountInt, config) {
-  if (typeof amountInt !== 'number' || isNaN(amountInt) || !config || !config.enabled) {
-    return { discountInt: 0, finalInt: amountInt }
+  const amount = Number(amountInt)
+  if (isNaN(amount) || !config || !(config.enabled === true || config.enabled === 'true')) {
+    return { discountInt: 0, finalInt: isNaN(amount) ? amountInt : amount }
   }
 
-  const isNegative = amountInt < 0
-  const absVal = Math.abs(amountInt)
+  const isNegative = amount < 0
+  const absVal = Math.abs(amount)
   const amountDecimal = absVal / 100
 
   // Try each rule: ceil first, then floor
@@ -51,12 +52,12 @@ function applyRounding(amountInt, config) {
       }
 
       const finalInt = Math.round(finalDecimal * 100) * (isNegative ? -1 : 1)
-      const discountInt = finalInt - amountInt
+      const discountInt = finalInt - amount
       return { discountInt, finalInt }
     }
   }
 
-  return { discountInt: 0, finalInt: amountInt }
+  return { discountInt: 0, finalInt: amount }
 }
 
 function BillInvoice({ 
@@ -190,6 +191,10 @@ function BillInvoice({
           <tbody className="divide-y divide-gray-200 bg-white">
             {items.map((item, idx) => {
               const amount = item.qty * item.unit_price
+              const isSingleItem = items.length === 1
+              const rowDiscount = isSingleItem ? discountInt : 0
+              const rowFinalValue = isSingleItem ? finalInt : amount
+
               return (
                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                   <td className="text-center px-4 py-3.5 text-gray-400 font-medium">{idx + 1}</td>
@@ -203,9 +208,15 @@ function BillInvoice({
                   <td className="text-right px-4 py-3.5 font-bold text-slate-800">
                     {showPrices ? formatCurrency(amount) : '***'}
                   </td>
-                  <td className="text-right px-4 py-3.5 text-gray-400 font-medium">-</td>
+                  <td className="text-right px-4 py-3.5 text-gray-400 font-medium">
+                    {isSingleItem && rowDiscount !== 0 ? (
+                      <span className={rowDiscount > 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                        {rowDiscount > 0 ? '+' : ''}{showPrices ? formatCurrency(rowDiscount) : '***'}
+                      </span>
+                    ) : '-'}
+                  </td>
                   <td className="text-right px-4 py-3.5 font-black text-slate-950">
-                    {showPrices ? formatCurrency(amount) : '***'}
+                    {showPrices ? formatCurrency(rowFinalValue) : '***'}
                   </td>
                 </tr>
               )

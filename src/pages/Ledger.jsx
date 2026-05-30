@@ -102,12 +102,13 @@ export default function Ledger() {
 
   // Apply rounding based on ceil/floor rules
   function applyRounding(amountInt, config) {
-    if (typeof amountInt !== 'number' || isNaN(amountInt) || !config || !config.enabled) {
-      return { discountInt: 0, finalInt: amountInt }
+    const amount = Number(amountInt)
+    if (isNaN(amount) || !config || !(config.enabled === true || config.enabled === 'true')) {
+      return { discountInt: 0, finalInt: isNaN(amount) ? amountInt : amount }
     }
 
-    const isNegative = amountInt < 0
-    const absVal = Math.abs(amountInt)
+    const isNegative = amount < 0
+    const absVal = Math.abs(amount)
     const amountDecimal = absVal / 100
 
     // Try each rule: ceil first, then floor
@@ -134,12 +135,12 @@ export default function Ledger() {
         }
 
         const finalInt = Math.round(finalDecimal * 100) * (isNegative ? -1 : 1)
-        const discountInt = finalInt - amountInt
+        const discountInt = finalInt - amount
         return { discountInt, finalInt }
       }
     }
 
-    return { discountInt: 0, finalInt: amountInt }
+    return { discountInt: 0, finalInt: amount }
   }
 
 
