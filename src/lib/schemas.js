@@ -39,6 +39,7 @@ export const stockPurchaseSchema = z.object({
   qty: z.number().positive('Quantity must be greater than 0'),
   cost_price: z.number().positive('Cost price must be greater than 0'),
   supplier: z.string().optional().or(z.literal('')),
+  firm_name: z.string().optional().or(z.literal('')),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   weight: z.number().positive('Weight must be greater than 0').optional().nullable(),
 })

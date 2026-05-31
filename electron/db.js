@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -56,6 +56,7 @@ function migrate() {
       qty REAL NOT NULL,
       cost_price INTEGER NOT NULL,
       supplier TEXT,
+      firm_name TEXT,
       date TEXT NOT NULL,
       weight REAL,
       created_at TEXT DEFAULT (datetime('now')),
@@ -134,6 +135,14 @@ function migrate() {
   if (version < 4) {
     try {
       db.exec("ALTER TABLE sales ADD COLUMN discount INTEGER NOT NULL DEFAULT 0;")
+    } catch (e) {
+      // Column may already exist if created fresh
+    }
+  }
+
+  if (version < 5) {
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN firm_name TEXT;")
     } catch (e) {
       // Column may already exist if created fresh
     }
@@ -286,10 +295,10 @@ function getStockPurchase(id) {
   `).get(id)
 }
 
-function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight }) {
+function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name }) {
   const insertPurchase = db.prepare(`
-    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight, firm_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
 
   const updateStock = db.prepare(`
@@ -299,7 +308,15 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight 
   `)
 
   const transaction = db.transaction(() => {
-    const result = insertPurchase.run(product_id, qty, cost_price, supplier || null, date, weight !== undefined ? weight : null)
+    const result = insertPurchase.run(
+      product_id,
+      qty,
+      cost_price,
+      supplier || null,
+      date,
+      weight !== undefined ? weight : null,
+      firm_name || null
+    )
     updateStock.run(qty, product_id)
     return result.lastInsertRowid
   })
@@ -313,7 +330,9 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight 
 function getSales({ limit = 50, offset = 0 } = {}) {
   return db.prepare(`
     SELECT s.*, c.name AS customer_name,
-           (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight
+           (SELECT SUM(qty) FROM sale_items WHERE sale_id = s.id) AS qty,
+           (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight,
+           (SELECT unit_price FROM sale_items WHERE sale_id = s.id LIMIT 1) AS rate
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     ORDER BY s.date DESC

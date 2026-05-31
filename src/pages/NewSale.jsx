@@ -10,13 +10,14 @@ export default function NewSale() {
   const [customerId, setCustomerId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
-  const [items, setItems] = useState([{ product_id: '', qty: '', total_price: '', weight: '' }])
+  const [items, setItems] = useState([{ product_id: '', qty: '', rate: '', total_price: '', weight: '' }])
   const [saving, setSaving] = useState(false)
   const [roundingConfig, setRoundingConfig] = useState(null)
   const [recentSales, setRecentSales] = useState([])
   const [discount, setDiscount] = useState('')
   const [finalValue, setFinalValue] = useState('')
   const [singleProductMode, setSingleProductMode] = useState(false)
+  const [showRateField, setShowRateField] = useState(true)
 
   // Calculate raw subtotal of items in Rupees
   const subtotal = items.reduce((s, item) => {
@@ -45,7 +46,7 @@ export default function NewSale() {
       setSingleProductMode(isSingleProduct)
       
       if (isSingleProduct && prods.length > 0) {
-        setItems([{ product_id: String(prods[0].id), qty: '', total_price: '', weight: '' }])
+        setItems([{ product_id: String(prods[0].id), qty: '', rate: '', total_price: '', weight: '' }])
       }
       
       const rulesVal = await ipc('meta:get', 'rounding_rules')
@@ -56,6 +57,9 @@ export default function NewSale() {
           console.error('Failed to parse rounding rules:', e)
         }
       }
+
+      const rateFieldVal = await ipc('meta:get', 'show_rate_field')
+      setShowRateField(rateFieldVal !== 'false')
     }
     load()
   }, [])
@@ -96,7 +100,7 @@ export default function NewSale() {
   }
 
   function addItem() {
-    setItems([...items, { product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_price: '', weight: '' }])
+    setItems([...items, { product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_price: '', weight: '' }])
   }
 
   function removeItem(i) {
@@ -105,7 +109,27 @@ export default function NewSale() {
 
   function updateItem(i, field, value) {
     const next = [...items]
-    next[i] = { ...next[i], [field]: value }
+    const item = { ...next[i], [field]: value }
+
+    if (field === 'qty' || field === 'rate') {
+      const q = Number(field === 'qty' ? value : item.qty) || 0
+      const r = Number(field === 'rate' ? value : item.rate) || 0
+      if (q > 0 && r > 0) {
+        item.total_price = (q * r).toFixed(2)
+      } else {
+        item.total_price = ''
+      }
+    } else if (field === 'total_price') {
+      const q = Number(item.qty) || 0
+      const tp = Number(value) || 0
+      if (q > 0 && tp > 0) {
+        item.rate = (tp / q).toFixed(2)
+      } else {
+        item.rate = ''
+      }
+    }
+
+    next[i] = item
     setItems(next)
   }
 
@@ -122,11 +146,12 @@ export default function NewSale() {
       items: items.map((i) => {
         const qty = Number(i.qty) || 0
         const totalPrice = Number(i.total_price) || 0
+        const rate = Number(i.rate) || 0
         const weight = i.weight ? Number(i.weight) : null
         return {
           product_id: Number(i.product_id),
           qty,
-          unit_price: qty > 0 ? totalPrice / qty : 0,
+          unit_price: rate > 0 ? rate : (qty > 0 ? totalPrice / qty : 0),
           weight,
         }
       }),
@@ -154,7 +179,7 @@ export default function NewSale() {
       setCustomerId('')
       setDate(new Date().toISOString().slice(0, 10))
       setNotes('')
-      setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_price: '', weight: '' }])
+      setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_price: '', weight: '' }])
       setDiscount('')
       setFinalValue('')
       loadRecentSales()
@@ -234,6 +259,15 @@ export default function NewSale() {
                 onChange={(e) => updateItem(i, 'qty', e.target.value)}
                 required
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Rate (₹)"
+                value={item.rate}
+                onChange={(e) => updateItem(i, 'rate', e.target.value)}
+                required
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
               <input
                 type="number"
@@ -332,6 +366,9 @@ export default function NewSale() {
               <tr>
                 <th className="text-left px-6 py-3.5 w-32">Date</th>
                 <th className="text-left px-6 py-3.5">Customer</th>
+                <th className="text-right px-6 py-3.5 w-24">Qty</th>
+                <th className="text-right px-6 py-3.5 w-28">Weight</th>
+                {showRateField && <th className="text-right px-6 py-3.5 w-32">Rate</th>}
                 <th className="text-right px-6 py-3.5 w-40">Original Value</th>
                 <th className="text-right px-6 py-3.5 w-40">Discount</th>
                 <th className="text-right px-6 py-3.5 w-40">Final Value</th>
@@ -353,6 +390,17 @@ export default function NewSale() {
                       {sale.customer_name}
                     </td>
                     <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                      {sale.qty > 0 ? sale.qty : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                      {sale.weight > 0 ? `${sale.weight} kg` : '-'}
+                    </td>
+                    {showRateField && (
+                      <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                        {sale.rate ? fmt(sale.rate) : '-'}
+                      </td>
+                    )}
+                    <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
                       {fmt(sub)}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap font-bold">
@@ -373,7 +421,7 @@ export default function NewSale() {
               })}
               {recentSales.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-400 italic">
+                  <td colSpan={showRateField ? 9 : 8} className="text-center py-8 text-gray-400 italic">
                     No sales recorded yet.
                   </td>
                 </tr>

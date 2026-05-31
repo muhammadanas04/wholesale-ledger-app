@@ -11,7 +11,7 @@ const LIMIT = 10
 
 export default function StockPurchase() {
   const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
+  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '' })
   const [purchases, setPurchases] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -56,6 +56,7 @@ export default function StockPurchase() {
       qty,
       cost_price: qty > 0 ? totalCost / qty : 0,
       supplier: form.supplier || '',
+      firm_name: form.firm_name || '',
       date: form.date,
       weight,
     }
@@ -70,7 +71,7 @@ export default function StockPurchase() {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
     })
-    setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
+    setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '' })
     setSaving(false)
     setPage(1)
     load()
@@ -135,6 +136,12 @@ export default function StockPurchase() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <input
+            placeholder="Firm Name"
+            value={form.firm_name}
+            onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
             placeholder="Supplier"
             value={form.supplier}
             onChange={(e) => setForm({ ...form, supplier: e.target.value })}
@@ -160,13 +167,14 @@ export default function StockPurchase() {
                 <th className="text-left px-5 py-3">Product</th>
                 <th className="text-right px-5 py-3">Qty</th>
                 <th className="text-right px-5 py-3">Total Cost</th>
+                <th className="text-left px-5 py-3">Firm Name</th>
                 <th className="text-left px-5 py-3">Supplier</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={5} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -183,11 +191,12 @@ export default function StockPurchase() {
                         )}
                       </td>
                       <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.qty * p.cost_price)}</td>
+                      <td className="px-5 py-3 text-gray-500 italic text-xs">{p.firm_name || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.supplier || '-'}</td>
                     </tr>
                   ))}
                   {purchases.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
+                    <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
                   )}
                 </>
               )}

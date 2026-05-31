@@ -16,6 +16,7 @@ export default function Settings() {
     gst_percentage: '18',
     gst_type: 'exclusive',
     single_product_mode: 'false',
+    show_rate_field: 'true',
   })
 
   // Rounding Rules State
@@ -44,7 +45,8 @@ export default function Settings() {
         'gst_number',
         'gst_percentage',
         'gst_type',
-        'single_product_mode'
+        'single_product_mode',
+        'show_rate_field'
       ]
       const newConfig = {
         shop_name: '',
@@ -56,7 +58,8 @@ export default function Settings() {
         gst_number: '',
         gst_percentage: '18',
         gst_type: 'exclusive',
-        single_product_mode: 'false'
+        single_product_mode: 'false',
+        show_rate_field: 'true'
       }
       for (const key of keys) {
         const val = await ipc('meta:get', key)
@@ -332,6 +335,22 @@ export default function Settings() {
                   type="checkbox"
                   checked={config.single_product_mode === 'true'}
                   onChange={(e) => setConfig({ ...config, single_product_mode: e.target.checked ? 'true' : 'false' })}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Show Rate Input Field</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show or hide the Rate (Price per Unit) input field in the New Sale form and invoices</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.show_rate_field === 'true'}
+                  onChange={(e) => setConfig({ ...config, show_rate_field: e.target.checked ? 'true' : 'false' })}
                   className="sr-only peer"
                 />
                 <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>

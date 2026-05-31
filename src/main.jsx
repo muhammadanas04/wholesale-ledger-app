@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import './index.css'
 import Sidebar from './components/Sidebar'
@@ -32,13 +32,26 @@ function App() {
     loadLayoutSize()
   }, [])
 
+  const location = useLocation()
+  const [singleProductMode, setSingleProductMode] = useState(false)
+
+  useEffect(() => {
+    async function checkMode() {
+      const val = await ipc('meta:get', 'single_product_mode')
+      setSingleProductMode(val === 'true')
+    }
+    checkMode()
+  }, [location.pathname])
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.altKey) {
         switch (e.key.toLowerCase()) {
           case 'd': navigate('/'); break
           case 'c': navigate('/customers'); break
-          case 'p': navigate('/products'); break
+          case 'p': 
+            if (!singleProductMode) navigate('/products')
+            break
           case 'n': navigate('/new-sale'); break
           case 't': navigate('/stock-purchase'); break
           case 'w': navigate('/payments'); break
@@ -50,7 +63,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate])
+  }, [navigate, singleProductMode])
 
   return (
     <div className="flex h-screen bg-gray-50">

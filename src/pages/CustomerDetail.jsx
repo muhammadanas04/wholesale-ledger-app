@@ -70,7 +70,8 @@ function BillInvoice({
   gstEnabled,
   gstNumber,
   gstPercentage,
-  gstType
+  gstType,
+  showRateField = true
 }) {
   const items = sale.items || []
 
@@ -182,6 +183,7 @@ function BillInvoice({
               <th className="text-center px-4 py-3.5 w-12">#</th>
               <th className="text-left px-4 py-3.5">Item</th>
               <th className="text-right px-4 py-3.5 w-24">Quantity</th>
+              {showRateField && <th className="text-right px-4 py-3.5 w-24">Rate</th>}
               <th className="text-right px-4 py-3.5 w-24">Weight</th>
               <th className="text-right px-4 py-3.5 w-28">Amount</th>
               <th className="text-right px-4 py-3.5 w-24">Discount</th>
@@ -206,6 +208,11 @@ function BillInvoice({
                   <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
                     {item.qty} {item.unit}
                   </td>
+                  {showRateField && (
+                    <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                      {formatCurrency(item.unit_price)}
+                    </td>
+                  )}
                   <td className="text-right px-4 py-3.5 font-medium text-slate-500">
                     {item.weight > 0 ? `${item.weight} kg` : '-'}
                   </td>
@@ -227,7 +234,7 @@ function BillInvoice({
             })}
             {items.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-400 italic">
+                <td colSpan={showRateField ? 8 : 7} className="text-center py-8 text-gray-400 italic">
                   No items in this sale
                 </td>
               </tr>
@@ -346,6 +353,7 @@ export default function CustomerDetail() {
   const [deleteSaleId, setDeleteSaleId] = useState(null)
   const [activeBill, setActiveBill] = useState(null)
   const [selectedSaleIds, setSelectedSaleIds] = useState([])
+  const [showRateField, setShowRateField] = useState(true)
 
 
   useEffect(() => {
@@ -379,6 +387,9 @@ export default function CustomerDetail() {
 
       const gstTy = await ipc('meta:get', 'gst_type')
       if (gstTy) setGstType(gstTy)
+
+      const rateFieldVal = await ipc('meta:get', 'show_rate_field')
+      setShowRateField(rateFieldVal !== 'false')
     }
     loadMeta()
   }, [])
@@ -459,7 +470,8 @@ export default function CustomerDetail() {
         discount: discountVal,
         final_amount: finalVal,
         amount: balanceAmount,
-        id: s.id
+        id: s.id,
+        rate: s.rate
       }
     }),
     ...payments.map((p) => ({
@@ -586,6 +598,7 @@ export default function CustomerDetail() {
                   </th>
                   <th className="text-left px-6 py-3">Date</th>
                   <th className="text-left px-6 py-3">Description</th>
+                  {showRateField && <th className="text-right px-6 py-3 w-32">Rate</th>}
                   <th className="text-right px-6 py-3">Original Value</th>
                   <th className="text-right px-6 py-3">Discount</th>
                   <th className="text-right px-6 py-3">Final Value</th>
@@ -616,6 +629,11 @@ export default function CustomerDetail() {
                     </td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
+                    {showRateField && (
+                      <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                        {r.type === 'sale' && r.rate ? formatCurrency(r.rate) : '-'}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
                       {r.type === 'sale' ? formatCurrency(r.original_amount) : '-'}
                     </td>
@@ -700,6 +718,7 @@ export default function CustomerDetail() {
             gstNumber={gstNumber}
             gstPercentage={gstPercentage}
             gstType={gstType}
+            showRateField={showRateField}
           />
         </div>
       )}
@@ -733,6 +752,7 @@ export default function CustomerDetail() {
                 gstNumber={gstNumber}
                 gstPercentage={gstPercentage}
                 gstType={gstType}
+                showRateField={showRateField}
               />
             </div>
             {/* Modal Actions */}
