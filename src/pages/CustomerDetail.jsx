@@ -74,6 +74,7 @@ function BillInvoice({
   showRateField = true
 }) {
   const items = sale.items || []
+  const payments = sale.payments || []
 
   // Format date and time
   const saleDate = new Date(sale.created_at || sale.date)
@@ -114,6 +115,9 @@ function BillInvoice({
     discountInt = rounded.discountInt
     finalInt = rounded.finalInt - manualDiscount
   }
+
+  const totalPayments = payments.reduce((sum, p) => sum + p.amount + (p.discount || 0), 0)
+  const grandTotalDue = finalInt - totalPayments
 
   return (
     <div className="mt-8 bg-white border border-gray-300 rounded-2xl p-8 text-gray-800 font-sans max-w-2xl mx-auto print:border-0 print:p-0">
@@ -176,72 +180,106 @@ function BillInvoice({
       </div>
 
       {/* Items Table */}
-      <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-white text-black font-bold text-[10px] uppercase tracking-wider">
-              <th className="text-center px-4 py-3.5 w-12">#</th>
-              <th className="text-left px-4 py-3.5">Item</th>
-              <th className="text-right px-4 py-3.5 w-24">Quantity</th>
-              {showRateField && <th className="text-right px-4 py-3.5 w-24">Rate</th>}
-              <th className="text-right px-4 py-3.5 w-24">Weight</th>
-              <th className="text-right px-4 py-3.5 w-28">Amount</th>
-              <th className="text-right px-4 py-3.5 w-24">Discount</th>
-              <th className="text-right px-4 py-3.5 w-28">Final Value</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {items.map((item, idx) => {
-              const amount = item.qty * item.unit_price
-              const isSingleItem = items.length === 1
-              const rowDiscount = isSingleItem
-                ? (discountInt !== 0 ? discountInt : (manualDiscount > 0 ? -manualDiscount : 0))
-                : 0
-              const rowFinalValue = isSingleItem
-                ? (discountInt !== 0 ? finalInt : amount - manualDiscount)
-                : amount
-
-              return (
-                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="text-center px-4 py-3.5 text-gray-400 font-medium">{idx + 1}</td>
-                  <td className="px-4 py-3.5 font-bold text-slate-900">{item.product_name}</td>
-                  <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
-                    {item.qty} {item.unit}
-                  </td>
-                  {showRateField && (
-                    <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
-                      {formatCurrency(item.unit_price)}
-                    </td>
-                  )}
-                  <td className="text-right px-4 py-3.5 font-medium text-slate-500">
-                    {item.weight > 0 ? `${item.weight} kg` : '-'}
-                  </td>
-                  <td className="text-right px-4 py-3.5 font-bold text-slate-800">
-                    {formatCurrency(amount)}
-                  </td>
-                  <td className="text-right px-4 py-3.5 text-gray-400 font-medium">
-                    {isSingleItem && rowDiscount !== 0 ? (
-                      <span className={rowDiscount > 0 ? 'text-emerald-600 font-bold' : 'text-rose-605 font-bold text-red-500'}>
-                        {rowDiscount > 0 ? '+' : ''}{formatCurrency(rowDiscount)}
-                      </span>
-                    ) : '-'}
-                  </td>
-                  <td className="text-right px-4 py-3.5 font-black text-slate-950">
-                    {formatCurrency(rowFinalValue)}
-                  </td>
-                </tr>
-              )
-            })}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={showRateField ? 8 : 7} className="text-center py-8 text-gray-400 italic">
-                  No items in this sale
-                </td>
+      {items.length > 0 && (
+        <div className="mb-8 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-white text-black font-bold text-[10px] uppercase tracking-wider">
+                <th className="text-center px-4 py-3.5 w-12">#</th>
+                <th className="text-left px-4 py-3.5">Item</th>
+                <th className="text-right px-4 py-3.5 w-24">Quantity</th>
+                {showRateField && <th className="text-right px-4 py-3.5 w-24">Rate</th>}
+                <th className="text-right px-4 py-3.5 w-24">Weight</th>
+                <th className="text-right px-4 py-3.5 w-28">Amount</th>
+                <th className="text-right px-4 py-3.5 w-24">Discount</th>
+                <th className="text-right px-4 py-3.5 w-28">Final Value</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {items.map((item, idx) => {
+                const amount = item.qty * item.unit_price
+                const isSingleItem = items.length === 1
+                const rowDiscount = isSingleItem
+                  ? (discountInt !== 0 ? discountInt : (manualDiscount > 0 ? -manualDiscount : 0))
+                  : 0
+                const rowFinalValue = isSingleItem
+                  ? (discountInt !== 0 ? finalInt : amount - manualDiscount)
+                  : amount
+
+                return (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="text-center px-4 py-3.5 text-gray-400 font-medium">{idx + 1}</td>
+                    <td className="px-4 py-3.5 font-bold text-slate-900">{item.product_name}</td>
+                    <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                      {item.qty} {item.unit}
+                    </td>
+                    {showRateField && (
+                      <td className="text-right px-4 py-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                        {formatCurrency(item.unit_price)}
+                      </td>
+                    )}
+                    <td className="text-right px-4 py-3.5 font-medium text-slate-500">
+                      {item.weight > 0 ? `${item.weight} kg` : '-'}
+                    </td>
+                    <td className="text-right px-4 py-3.5 font-bold text-slate-800">
+                      {formatCurrency(amount)}
+                    </td>
+                    <td className="text-right px-4 py-3.5 text-gray-400 font-medium">
+                      {isSingleItem && rowDiscount !== 0 ? (
+                        <span className={rowDiscount > 0 ? 'text-emerald-600 font-bold' : 'text-rose-605 font-bold text-red-500'}>
+                          {rowDiscount > 0 ? '+' : ''}{formatCurrency(rowDiscount)}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="text-right px-4 py-3.5 font-black text-slate-950">
+                      {formatCurrency(rowFinalValue)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Selected Payments Table */}
+      {payments.length > 0 && (
+        <div className="mb-8">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+            PAYMENTS APPLIED:
+          </p>
+          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 font-bold text-[10px] uppercase tracking-wider">
+                  <th className="text-center px-4 py-2.5 w-12">#</th>
+                  <th className="text-left px-4 py-2.5 w-28">Date</th>
+                  <th className="text-left px-4 py-2.5">Notes</th>
+                  <th className="text-right px-4 py-2.5 w-24">Amount</th>
+                  <th className="text-right px-4 py-2.5 w-24">Discount</th>
+                  <th className="text-right px-4 py-2.5 w-28">Total Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {payments.map((p, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="text-center px-4 py-2.5 text-gray-400 font-medium">{idx + 1}</td>
+                    <td className="px-4 py-2.5 text-slate-700 font-semibold">{formatDate(p.date)}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 italic font-medium">{p.notes || `Payment #${p.id}`}</td>
+                    <td className="text-right px-4 py-2.5 font-semibold text-green-600">{formatCurrency(p.amount)}</td>
+                    <td className="text-right px-4 py-2.5 font-semibold text-emerald-650 text-emerald-600">
+                      {p.discount > 0 ? `+${formatCurrency(p.discount)}` : '-'}
+                    </td>
+                    <td className="text-right px-4 py-2.5 font-bold text-green-700">
+                      {formatCurrency(p.amount + (p.discount || 0))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Footer / Grand Total Section */}
       <div className="border-t-2 border-slate-900 pt-6 flex flex-col md:flex-row md:justify-between items-end gap-6">
@@ -249,59 +287,70 @@ function BillInvoice({
           <p className="text-xs text-gray-500 font-bold uppercase">
             Payment Method: <span className="text-slate-900 font-black">CASH</span>
           </p>
-          <p className="text-xs text-gray-500 font-bold uppercase">
-            Total Items: <span className="text-slate-900 font-black">{items.length}</span>
-          </p>
+          {items.length > 0 && (
+            <p className="text-xs text-gray-500 font-bold uppercase">
+              Total Items: <span className="text-slate-900 font-black">{items.length}</span>
+            </p>
+          )}
         </div>
         <div className="w-full md:w-72 space-y-2 text-right">
-          {gstEnabled ? (
-            gstType === 'exclusive' ? (
-              <>
-                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                  <span>Subtotal:</span>
-                  <span className="text-slate-800">
-                    {formatCurrency(subtotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                  <span>GST ({gstPercentage}%):</span>
-                  <span className="text-slate-800 font-extrabold">
-                    {formatCurrency(gstAmount)}
-                  </span>
-                </div>
-              </>
+          {items.length > 0 ? (
+            gstEnabled ? (
+              gstType === 'exclusive' ? (
+                <>
+                  <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                    <span>Subtotal:</span>
+                    <span className="text-slate-800">
+                      {formatCurrency(subtotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                    <span>GST ({gstPercentage}%):</span>
+                    <span className="text-slate-800 font-extrabold">
+                      {formatCurrency(gstAmount)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                    <span>Taxable Value:</span>
+                    <span className="text-slate-800">
+                      {formatCurrency(taxableSubtotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                    <span>GST Included ({gstPercentage}%):</span>
+                    <span className="text-slate-800 font-semibold">
+                      {formatCurrency(gstIncluded)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                    <span>Subtotal:</span>
+                    <span className="text-slate-855 text-slate-800">
+                      {formatCurrency(preRoundingTotal)}
+                    </span>
+                  </div>
+                </>
+              )
             ) : (
-              <>
-                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                  <span>Taxable Value:</span>
-                  <span className="text-slate-800">
-                    {formatCurrency(taxableSubtotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                  <span>GST Included ({gstPercentage}%):</span>
-                  <span className="text-slate-800 font-semibold">
-                    {formatCurrency(gstIncluded)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-                  <span>Subtotal:</span>
-                  <span className="text-slate-850">
-                    {formatCurrency(preRoundingTotal)}
-                  </span>
-                </div>
-              </>
+              <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                <span>Subtotal:</span>
+                <span className="text-slate-800">
+                  {formatCurrency(sale.total_amount)}
+                </span>
+              </div>
             )
           ) : (
             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
-              <span>Subtotal:</span>
+              <span>Total Sales:</span>
               <span className="text-slate-800">
-                {formatCurrency(sale.total_amount)}
+                {formatCurrency(0)}
               </span>
             </div>
           )}
           
-          {roundingConfig && roundingConfig.enabled && discountInt !== 0 && (
+          {items.length > 0 && roundingConfig && roundingConfig.enabled && discountInt !== 0 && (
             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
               <span>Rounding Discount:</span>
               <span className={discountInt > 0 ? 'text-emerald-600 font-extrabold' : 'text-rose-600 font-extrabold'}>
@@ -309,7 +358,7 @@ function BillInvoice({
               </span>
             </div>
           )}
-          {manualDiscount > 0 && (
+          {items.length > 0 && manualDiscount > 0 && (
             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
               <span>Discount:</span>
               <span className="text-emerald-600 font-extrabold">
@@ -318,11 +367,28 @@ function BillInvoice({
             </div>
           )}
           <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
-            <span className="text-sm font-black text-slate-500 uppercase tracking-wider">GRAND TOTAL</span>
+            <span className="text-sm font-black text-slate-500 uppercase tracking-wider">TOTAL SALES</span>
             <span className="text-3xl font-black text-slate-950 tracking-tighter">
               {formatCurrency(finalInt)}
             </span>
           </div>
+
+          {totalPayments > 0 && (
+            <>
+              <div className="flex justify-between text-xs font-bold text-gray-500 uppercase pt-2">
+                <span>Less: Total Payments:</span>
+                <span className="text-green-600 font-extrabold">
+                  -{formatCurrency(totalPayments)}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline pt-2 border-t-2 border-slate-900 mt-2">
+                <span className="text-sm font-black text-slate-700 uppercase tracking-wider">BALANCE DUE</span>
+                <span className="text-3xl font-black text-slate-950 tracking-tighter">
+                  {formatCurrency(grandTotalDue)}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -353,6 +419,7 @@ export default function CustomerDetail() {
   const [deleteSaleId, setDeleteSaleId] = useState(null)
   const [activeBill, setActiveBill] = useState(null)
   const [selectedSaleIds, setSelectedSaleIds] = useState([])
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState([])
   const [showRateField, setShowRateField] = useState(true)
 
 
@@ -428,6 +495,7 @@ export default function CustomerDetail() {
 
   useEffect(() => {
     setSelectedSaleIds([])
+    setSelectedPaymentIds([])
     load()
   }, [id])
 
@@ -564,7 +632,7 @@ export default function CustomerDetail() {
           <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="font-black text-gray-900 text-sm uppercase tracking-widest">Transaction History</span>
-              {selectedSaleIds.length > 0 && (
+              {(selectedSaleIds.length > 0 || selectedPaymentIds.length > 0) && (
                 <button
                   onClick={async () => {
                     try {
@@ -573,17 +641,18 @@ export default function CustomerDetail() {
                       )
 
                       const validSales = saleObjects.filter(Boolean)
-                      if (validSales.length === 0) {
-                        toast.error('Failed to load selected sale details')
-                        return
-                      }
+                      const selectedPayments = payments.filter(p => selectedPaymentIds.includes(p.id))
 
                       const combinedSale = {
-                        id: `Combined (${validSales.map(s => `#${s.id}`).join(', ')})`,
+                        id: validSales.length > 0 
+                          ? `Combined (${validSales.map(s => `#${s.id}`).join(', ')})`
+                          : `Statement`,
                         total_amount: validSales.reduce((sum, s) => sum + s.total_amount, 0),
-                        date: validSales[0].date,
+                        discount: validSales.reduce((sum, s) => sum + s.discount, 0),
+                        date: validSales.length > 0 ? validSales[0].date : new Date().toISOString().slice(0, 10),
                         created_at: new Date().toISOString(),
-                        items: validSales.flatMap(s => s.items || [])
+                        items: validSales.flatMap(s => s.items || []),
+                        payments: selectedPayments
                       }
 
                       setActiveBill(combinedSale)
@@ -594,7 +663,7 @@ export default function CustomerDetail() {
                   }}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 no-print"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Print Selected ({selectedSaleIds.length})
+                  <Printer className="w-3.5 h-3.5" /> Print Selected ({selectedSaleIds.length + selectedPaymentIds.length})
                 </button>
               )}
             </div>
@@ -609,12 +678,18 @@ export default function CustomerDetail() {
                   <th className="w-12 px-6 py-3 text-center no-print">
                     <input
                       type="checkbox"
-                      checked={sales.length > 0 && selectedSaleIds.length === sales.length}
+                      checked={
+                        (sales.length === 0 || selectedSaleIds.length === sales.length) &&
+                        (payments.length === 0 || selectedPaymentIds.length === payments.length) &&
+                        (sales.length > 0 || payments.length > 0)
+                      }
                       onChange={(e) => {
                         if (e.target.checked) {
                           setSelectedSaleIds(sales.map(s => s.id))
+                          setSelectedPaymentIds(payments.map(p => p.id))
                         } else {
                           setSelectedSaleIds([])
+                          setSelectedPaymentIds([])
                         }
                       }}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
@@ -647,7 +722,18 @@ export default function CustomerDetail() {
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                         />
                       ) : (
-                        <div className="w-4 h-4" />
+                        <input
+                           type="checkbox"
+                          checked={selectedPaymentIds.includes(r.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPaymentIds([...selectedPaymentIds, r.id])
+                            } else {
+                              setSelectedPaymentIds(selectedPaymentIds.filter(id => id !== r.id))
+                            }
+                          }}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                        />
                       )}
                     </td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
