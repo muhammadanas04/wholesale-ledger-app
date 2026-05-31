@@ -255,9 +255,7 @@ function BillInvoice({
                   <th className="text-center px-4 py-2.5 w-12">#</th>
                   <th className="text-left px-4 py-2.5 w-28">Date</th>
                   <th className="text-left px-4 py-2.5">Notes</th>
-                  <th className="text-right px-4 py-2.5 w-24">Amount</th>
-                  <th className="text-right px-4 py-2.5 w-24">Discount</th>
-                  <th className="text-right px-4 py-2.5 w-28">Total Value</th>
+                  <th className="text-right px-4 py-2.5 w-36">Total Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -266,10 +264,6 @@ function BillInvoice({
                     <td className="text-center px-4 py-2.5 text-gray-400 font-medium">{idx + 1}</td>
                     <td className="px-4 py-2.5 text-slate-700 font-semibold">{formatDate(p.date)}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-400 italic font-medium">{p.notes || `Payment #${p.id}`}</td>
-                    <td className="text-right px-4 py-2.5 font-semibold text-green-600">{formatCurrency(p.amount)}</td>
-                    <td className="text-right px-4 py-2.5 font-semibold text-emerald-650 text-emerald-600">
-                      {p.discount > 0 ? `+${formatCurrency(p.discount)}` : '-'}
-                    </td>
                     <td className="text-right px-4 py-2.5 font-bold text-green-700">
                       {formatCurrency(p.amount + (p.discount || 0))}
                     </td>
