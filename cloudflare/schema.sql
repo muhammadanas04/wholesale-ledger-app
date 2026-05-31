@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS sales (
   customer_id INTEGER NOT NULL,
   date TEXT NOT NULL,
   total_amount INTEGER NOT NULL,
+  discount INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),

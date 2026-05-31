@@ -12,15 +12,15 @@ Welcome to the Wholesale Ledger application. This tool is designed to help you m
 
 ## Keyboard Shortcuts
 Use these shortcuts to navigate faster:
-- `Ctrl + D`: Dashboard
-- `Ctrl + C`: Customers
-- `Ctrl + P`: Products
-- `Ctrl + N`: New Sale
-- `Ctrl + T`: Stock Purchase (Inventory)
-- `Ctrl + W`: Record Payment (Wallet)
-- `Ctrl + L`: Ledger
-- `Ctrl + R`: Reports
-- `Ctrl + S`: Settings
+- `Alt + D`: Dashboard
+- `Alt + C`: Customers
+- `Alt + P`: Products
+- `Alt + N`: New Sale
+- `Alt + T`: Stock Purchase (Inventory)
+- `Alt + W`: Record Payment (Wallet)
+- `Alt + L`: Ledger
+- `Alt + R`: Reports
+- `Alt + S`: Settings
 
 ## Cloud Sync
 The app works offline by default. If you have configured a Cloudflare D1 sync worker in **Settings**, the app will automatically synchronize your data every 5 minutes. You can also trigger a manual sync using the refresh icon in the top header.

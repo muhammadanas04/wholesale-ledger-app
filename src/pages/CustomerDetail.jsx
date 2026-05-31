@@ -63,7 +63,6 @@ function applyRounding(amountInt, config) {
 function BillInvoice({ 
   sale, 
   customer, 
-  showPrices, 
   roundingConfig, 
   shopName, 
   shopAddress, 
@@ -87,7 +86,8 @@ function BillInvoice({
   let taxableSubtotal = 0
   let preRoundingTotal = sale.total_amount
   let discountInt = 0
-  let finalInt = sale.total_amount
+  const manualDiscount = sale.discount || 0
+  let finalInt = sale.total_amount - manualDiscount
 
   if (gstEnabled) {
     if (gstType === 'exclusive') {
@@ -96,22 +96,22 @@ function BillInvoice({
       preRoundingTotal = subtotal + gstAmount
       const rounded = applyRounding(preRoundingTotal, roundingConfig)
       discountInt = rounded.discountInt
-      finalInt = rounded.finalInt
+      finalInt = rounded.finalInt - manualDiscount
     } else {
       // Inclusive GST
       preRoundingTotal = sale.total_amount
       const rounded = applyRounding(preRoundingTotal, roundingConfig)
       discountInt = rounded.discountInt
-      finalInt = rounded.finalInt
+      finalInt = rounded.finalInt - manualDiscount
       
-      taxableSubtotal = Math.round(preRoundingTotal / (1 + gstPercentage / 100))
-      gstIncluded = preRoundingTotal - taxableSubtotal
+      taxableSubtotal = Math.round((preRoundingTotal - manualDiscount) / (1 + gstPercentage / 100))
+      gstIncluded = (preRoundingTotal - manualDiscount) - taxableSubtotal
     }
   } else {
     preRoundingTotal = sale.total_amount
     const rounded = applyRounding(preRoundingTotal, roundingConfig)
     discountInt = rounded.discountInt
-    finalInt = rounded.finalInt
+    finalInt = rounded.finalInt - manualDiscount
   }
 
   return (
@@ -192,8 +192,12 @@ function BillInvoice({
             {items.map((item, idx) => {
               const amount = item.qty * item.unit_price
               const isSingleItem = items.length === 1
-              const rowDiscount = isSingleItem ? discountInt : 0
-              const rowFinalValue = isSingleItem ? finalInt : amount
+              const rowDiscount = isSingleItem
+                ? (discountInt !== 0 ? discountInt : (manualDiscount > 0 ? -manualDiscount : 0))
+                : 0
+              const rowFinalValue = isSingleItem
+                ? (discountInt !== 0 ? finalInt : amount - manualDiscount)
+                : amount
 
               return (
                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
@@ -206,17 +210,17 @@ function BillInvoice({
                     {item.weight > 0 ? `${item.weight} kg` : '-'}
                   </td>
                   <td className="text-right px-4 py-3.5 font-bold text-slate-800">
-                    {showPrices ? formatCurrency(amount) : '***'}
+                    {formatCurrency(amount)}
                   </td>
                   <td className="text-right px-4 py-3.5 text-gray-400 font-medium">
                     {isSingleItem && rowDiscount !== 0 ? (
-                      <span className={rowDiscount > 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                        {rowDiscount > 0 ? '+' : ''}{showPrices ? formatCurrency(rowDiscount) : '***'}
+                      <span className={rowDiscount > 0 ? 'text-emerald-600 font-bold' : 'text-rose-605 font-bold text-red-500'}>
+                        {rowDiscount > 0 ? '+' : ''}{formatCurrency(rowDiscount)}
                       </span>
                     ) : '-'}
                   </td>
                   <td className="text-right px-4 py-3.5 font-black text-slate-950">
-                    {showPrices ? formatCurrency(rowFinalValue) : '***'}
+                    {formatCurrency(rowFinalValue)}
                   </td>
                 </tr>
               )
@@ -249,13 +253,13 @@ function BillInvoice({
                 <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
                   <span>Subtotal:</span>
                   <span className="text-slate-800">
-                    {showPrices ? formatCurrency(subtotal) : '***'}
+                    {formatCurrency(subtotal)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
                   <span>GST ({gstPercentage}%):</span>
                   <span className="text-slate-800 font-extrabold">
-                    {showPrices ? formatCurrency(gstAmount) : '***'}
+                    {formatCurrency(gstAmount)}
                   </span>
                 </div>
               </>
@@ -264,19 +268,19 @@ function BillInvoice({
                 <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
                   <span>Taxable Value:</span>
                   <span className="text-slate-800">
-                    {showPrices ? formatCurrency(taxableSubtotal) : '***'}
+                    {formatCurrency(taxableSubtotal)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
                   <span>GST Included ({gstPercentage}%):</span>
                   <span className="text-slate-800 font-semibold">
-                    {showPrices ? formatCurrency(gstIncluded) : '***'}
+                    {formatCurrency(gstIncluded)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
                   <span>Subtotal:</span>
                   <span className="text-slate-850">
-                    {showPrices ? formatCurrency(preRoundingTotal) : '***'}
+                    {formatCurrency(preRoundingTotal)}
                   </span>
                 </div>
               </>
@@ -285,7 +289,7 @@ function BillInvoice({
             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
               <span>Subtotal:</span>
               <span className="text-slate-800">
-                {showPrices ? formatCurrency(sale.total_amount) : '***'}
+                {formatCurrency(sale.total_amount)}
               </span>
             </div>
           )}
@@ -294,14 +298,22 @@ function BillInvoice({
             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
               <span>Rounding Discount:</span>
               <span className={discountInt > 0 ? 'text-emerald-600 font-extrabold' : 'text-rose-600 font-extrabold'}>
-                {discountInt > 0 ? '+' : ''}{showPrices ? formatCurrency(discountInt) : '***'}
+                {discountInt > 0 ? '+' : ''}{formatCurrency(discountInt)}
+              </span>
+            </div>
+          )}
+          {manualDiscount > 0 && (
+            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+              <span>Discount:</span>
+              <span className="text-emerald-600 font-extrabold">
+                -{formatCurrency(manualDiscount)}
               </span>
             </div>
           )}
           <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
             <span className="text-sm font-black text-slate-500 uppercase tracking-wider">GRAND TOTAL</span>
             <span className="text-3xl font-black text-slate-950 tracking-tighter">
-              {showPrices ? formatCurrency(finalInt) : '***'}
+              {formatCurrency(finalInt)}
             </span>
           </div>
         </div>
@@ -332,17 +344,9 @@ export default function CustomerDetail() {
   // Confirm dialog and view bill states
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteSaleId, setDeleteSaleId] = useState(null)
-  const [showPrices, setShowPrices] = useState(true)
   const [activeBill, setActiveBill] = useState(null)
   const [selectedSaleIds, setSelectedSaleIds] = useState([])
 
-  useEffect(() => {
-    async function checkPricePref() {
-      const val = await ipc('meta:get', 'show_price_customers')
-      setShowPrices(val !== 'false')
-    }
-    checkPricePref()
-  }, [])
 
   useEffect(() => {
     async function loadMeta() {
@@ -430,14 +434,44 @@ export default function CustomerDetail() {
   if (!customer) return <div className="p-6 text-gray-400">Customer not found</div>
 
   const transactions = [
-    ...sales.map((s) => ({
-      type: 'sale',
-      date: s.date,
-      desc: s.weight > 0 ? `Sale #${s.id} (${s.weight} kg)` : `Sale #${s.id}`,
-      amount: s.total_amount,
-      id: s.id
+    ...sales.map((s) => {
+      let roundingDiscount = 0
+      let finalRounded = s.total_amount
+      if (roundingConfig && roundingConfig.enabled) {
+        const rounded = applyRounding(s.total_amount, roundingConfig)
+        roundingDiscount = rounded.discountInt
+        finalRounded = rounded.finalInt
+      }
+
+      const manualDiscount = s.discount || 0
+      const isManual = !roundingConfig || !roundingConfig.enabled
+
+      const originalVal = s.total_amount
+      const discountVal = isManual ? manualDiscount : -roundingDiscount
+      const finalVal = isManual ? (originalVal - manualDiscount) : finalRounded
+      const balanceAmount = isManual ? (originalVal - manualDiscount) : originalVal
+
+      return {
+        type: 'sale',
+        date: s.date,
+        desc: s.weight > 0 ? `Sale #${s.id} (${s.weight} kg)` : `Sale #${s.id}`,
+        original_amount: originalVal,
+        discount: discountVal,
+        final_amount: finalVal,
+        amount: balanceAmount,
+        id: s.id
+      }
+    }),
+    ...payments.map((p) => ({
+      type: 'payment',
+      date: p.date,
+      desc: p.notes || 'Payment',
+      original_amount: p.amount,
+      discount: 0,
+      final_amount: p.amount,
+      amount: -p.amount,
+      id: p.id
     })),
-    ...payments.map((p) => ({ type: 'payment', date: p.date, desc: p.notes || 'Payment', amount: -p.amount, id: p.id })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
   let running = customer.balance
@@ -484,7 +518,7 @@ export default function CustomerDetail() {
             <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 min-w-[200px]">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Outstanding Balance</p>
               <p className={`text-2xl font-black tracking-tighter ${customer.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                {showPrices ? formatCurrency(customer.balance) : '***'}
+                {formatCurrency(customer.balance)}
               </p>
             </div>
           </div>
@@ -552,7 +586,9 @@ export default function CustomerDetail() {
                   </th>
                   <th className="text-left px-6 py-3">Date</th>
                   <th className="text-left px-6 py-3">Description</th>
-                  <th className="text-right px-6 py-3">Amount</th>
+                  <th className="text-right px-6 py-3">Original Value</th>
+                  <th className="text-right px-6 py-3">Discount</th>
+                  <th className="text-right px-6 py-3">Final Value</th>
                   <th className="text-right px-6 py-3">Balance</th>
                   <th className="text-center px-6 py-3 no-print">Action</th>
                 </tr>
@@ -563,7 +599,7 @@ export default function CustomerDetail() {
                     <td className="w-12 px-6 py-4 text-center no-print">
                       {r.type === 'sale' ? (
                         <input
-                          type="checkbox"
+                           type="checkbox"
                           checked={selectedSaleIds.includes(r.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -580,11 +616,27 @@ export default function CustomerDetail() {
                     </td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
-                    <td className={`px-6 py-4 text-right font-bold ${r.amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {showPrices ? (r.amount > 0 ? formatCurrency(r.amount) : `-${formatCurrency(-r.amount)}`) : '***'}
+                    <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                      {r.type === 'sale' ? formatCurrency(r.original_amount) : '-'}
                     </td>
-                    <td className="px-6 py-4 text-right font-black tracking-tight text-gray-700">
-                      {showPrices ? formatCurrency(Math.abs(r.running)) : '***'}
+                    <td className="px-6 py-4 text-right whitespace-nowrap font-bold">
+                      {r.type === 'sale' ? (
+                        r.discount > 0 ? (
+                          <span className="text-emerald-600">-{formatCurrency(r.discount)}</span>
+                        ) : r.discount < 0 ? (
+                          <span className="text-red-500">+{formatCurrency(-r.discount)}</span>
+                        ) : (
+                          <span className="text-gray-400 font-medium">-</span>
+                        )
+                      ) : (
+                        <span className="text-gray-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 text-right font-black whitespace-nowrap ${r.type === 'sale' ? 'text-slate-900' : 'text-green-600'}`}>
+                      {r.type === 'sale' ? formatCurrency(r.final_amount) : `-${formatCurrency(r.final_amount)}`}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black tracking-tight text-gray-750">
+                      {formatCurrency(Math.abs(r.running))}
                       <span className="text-[10px] ml-1 uppercase">{r.running > 0 ? 'Dr' : 'Cr'}</span>
                     </td>
                     <td className="px-6 py-4 text-center no-print flex items-center justify-center gap-2">
@@ -640,7 +692,6 @@ export default function CustomerDetail() {
           <BillInvoice
             sale={activeBill}
             customer={customer}
-            showPrices={showPrices}
             roundingConfig={roundingConfig}
             shopName={shopName}
             shopAddress={shopAddress}
@@ -674,7 +725,6 @@ export default function CustomerDetail() {
               <BillInvoice
                 sale={activeBill}
                 customer={customer}
-                showPrices={showPrices}
                 roundingConfig={roundingConfig}
                 shopName={shopName}
                 shopAddress={shopAddress}

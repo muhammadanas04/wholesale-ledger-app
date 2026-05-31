@@ -21,15 +21,6 @@ export default function Customers() {
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', address: '' })
-  const [showPrices, setShowPrices] = useState(true)
-
-  useEffect(() => {
-    async function checkPricePref() {
-      const val = await ipc('meta:get', 'show_price_customers')
-      setShowPrices(val !== 'false')
-    }
-    checkPricePref()
-  }, [])
 
   async function load() {
     setLoading(true)
@@ -170,7 +161,7 @@ export default function Customers() {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className={`font-bold ${c.balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                    {showPrices ? formatCurrency(c.balance) : '***'}
+                    {formatCurrency(c.balance)}
                   </span>
                   <button onClick={(e) => { e.preventDefault(); openEdit(c) }} className="text-sm text-blue-600 font-bold hover:underline">Edit</button>
                 </div>

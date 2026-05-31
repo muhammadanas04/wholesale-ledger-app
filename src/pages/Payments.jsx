@@ -25,15 +25,6 @@ export default function Payments() {
   // Confirm dialog state
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
-  const [showPrices, setShowPrices] = useState(true)
-
-  useEffect(() => {
-    async function checkPricePref() {
-      const val = await ipc('meta:get', 'show_price_payments')
-      setShowPrices(val !== 'false')
-    }
-    checkPricePref()
-  }, [])
 
   async function load() {
     setLoading(true)
@@ -109,7 +100,7 @@ export default function Payments() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
           >
             <option value="">Select customer</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} {showPrices ? `(₹${(c.balance/100).toFixed(2)})` : ''}</option>)}
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} (₹{(c.balance/100).toFixed(2)})</option>)}
           </select>
           <input
             type="date"
@@ -167,7 +158,7 @@ export default function Payments() {
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.customer_name}</td>
-                      <td className="px-5 py-3 text-right text-green-600 font-bold">{showPrices ? formatCurrency(p.amount) : '***'}</td>
+                      <td className="px-5 py-3 text-right text-green-600 font-bold">{formatCurrency(p.amount)}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.notes || '-'}</td>
                       <td className="px-5 py-3 text-center">
                         <button onClick={() => confirmDelete(p.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">

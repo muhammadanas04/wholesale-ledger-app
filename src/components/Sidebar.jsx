@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   Users, 
@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
+import { ipc } from '../lib/ipc'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,6 +25,8 @@ const navItems = [
 ]
 
 export default function Sidebar() {
+  const location = useLocation()
+  const [singleProductMode, setSingleProductMode] = useState(false)
   const [isCompact, setIsCompact] = useState(() => {
     return localStorage.getItem('sidebar_compact') === 'true'
   })
@@ -35,6 +38,18 @@ export default function Sidebar() {
       return next
     })
   }
+
+  useEffect(() => {
+    async function checkMode() {
+      const val = await ipc('meta:get', 'single_product_mode')
+      setSingleProductMode(val === 'true')
+    }
+    checkMode()
+  }, [location.pathname])
+
+  const visibleItems = singleProductMode
+    ? navItems.filter((item) => item.to !== '/products')
+    : navItems
 
   return (
     <aside className={`bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transition-all duration-300 ${
@@ -58,7 +73,7 @@ export default function Sidebar() {
 
       {/* Main Navigation Links */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

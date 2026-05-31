@@ -17,18 +17,28 @@ export default function StockPurchase() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [singleProductMode, setSingleProductMode] = useState(false)
 
   async function load() {
     setLoading(true)
     const offset = (page - 1) * LIMIT
-    const [prods, data, count] = await Promise.all([
+    const [prods, data, count, singleProductVal] = await Promise.all([
       ipc('products:list', { limit: 1000 }),
       ipc('stock-purchases:list', { limit: LIMIT, offset }),
-      ipc('stock-purchases:count')
+      ipc('stock-purchases:count'),
+      ipc('meta:get', 'single_product_mode')
     ])
-    setProducts(prods || [])
+    const isSingleProduct = singleProductVal === 'true'
+    setSingleProductMode(isSingleProduct)
+    const productsList = prods || []
+    setProducts(productsList)
     setPurchases(data || [])
     setTotal(Math.ceil((count || 0) / LIMIT))
+    
+    if (isSingleProduct && productsList.length > 0) {
+      setForm(f => ({ ...f, product_id: String(productsList[0].id) }))
+    }
+    
     setLoading(false)
   }
 
@@ -60,7 +70,7 @@ export default function StockPurchase() {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
     })
-    setForm({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
+    setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '' })
     setSaving(false)
     setPage(1)
     load()
@@ -76,15 +86,21 @@ export default function StockPurchase() {
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select
-            value={form.product_id}
-            onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-            required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-          >
-            <option value="">Select product</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.current_stock} {p.unit} in stock)</option>)}
-          </select>
+          {singleProductMode ? (
+            <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600 font-medium flex items-center">
+              {products[0] ? `${products[0].name} (${products[0].current_stock} ${products[0].unit} in stock)` : 'Product'}
+            </div>
+          ) : (
+            <select
+              value={form.product_id}
+              onChange={(e) => setForm({ ...form, product_id: e.target.value })}
+              required
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            >
+              <option value="">Select product</option>
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.current_stock} {p.unit} in stock)</option>)}
+            </select>
+          )}
           <input
             type="date"
             value={form.date}

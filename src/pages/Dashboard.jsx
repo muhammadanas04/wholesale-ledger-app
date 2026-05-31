@@ -56,21 +56,12 @@ export default function Dashboard() {
   const [dates, setDates] = useState({ start: '', end: '' })
   const [shopName, setShopName] = useState('Wholesale Ledger')
   const [activeTab, setActiveTab] = useState('products') // products, customers, movements
-  const [showPrices, setShowPrices] = useState(true)
 
   const [stats, setStats] = useState({ sales: 0, stockValue: 0, balance: 0 })
   const [lowStock, setLowStock] = useState([])
   const [topProducts, setTopProducts] = useState([])
   const [topCustomers, setTopCustomers] = useState([])
   const [stockMovements, setStockMovements] = useState([])
-
-  useEffect(() => {
-    async function checkPricePref() {
-      const val = await ipc('meta:get', 'show_price_dashboard')
-      setShowPrices(val !== 'false')
-    }
-    checkPricePref()
-  }, [])
 
   // Calculate dynamic monthly dates on mount or preset switch
   const getPresetDates = (preset) => {
@@ -121,7 +112,7 @@ export default function Dashboard() {
           ipc('meta:get', 'shop_name'),
         ])
 
-        const totalSales = (sales || []).reduce((sum, s) => sum + s.total_amount, 0)
+        const totalSales = (sales || []).reduce((sum, s) => sum + s.total_amount - (s.discount || 0), 0)
         const totalBalance = (allCusts || []).reduce((sum, c) => sum + c.balance, 0)
 
         if (name) setShopName(name)
@@ -262,29 +253,27 @@ export default function Dashboard() {
         <StatCard 
           icon={IndianRupee} 
           label={`Sales (${activePreset === 'custom' ? 'Custom Period' : activePreset === 'today' ? 'Today' : activePreset === 'monthly' ? 'This Month' : 'Yearly'})`} 
-          value={showPrices ? formatCurrency(stats.sales) : '***'} 
+          value={formatCurrency(stats.sales)} 
           color="bg-emerald-500" 
           loading={loading} 
         />
         <StatCard 
           icon={Package} 
           label="Total Inventory Value" 
-          value={showPrices ? formatCurrency(stats.stockValue) : '***'} 
+          value={formatCurrency(stats.stockValue)} 
           color="bg-blue-600" 
           loading={loading} 
         />
         <StatCard 
           icon={Users} 
           label="Total Outstanding Balance" 
-          value={showPrices ? formatCurrency(stats.balance) : '***'} 
+          value={formatCurrency(stats.balance)} 
           color="bg-orange-500" 
           loading={loading}
         >
-          {showPrices && (
-            <Link to="/ledger?date=today" className="no-print text-[10px] font-bold text-orange-600 hover:text-orange-700 hover:underline block mt-1.5 uppercase tracking-wider">
-              View Today's Ledger →
-            </Link>
-          )}
+          <Link to="/ledger?date=today" className="no-print text-[10px] font-bold text-orange-600 hover:text-orange-700 hover:underline block mt-1.5 uppercase tracking-wider">
+            View Today's Ledger →
+          </Link>
         </StatCard>
       </div>
 
@@ -304,11 +293,6 @@ export default function Dashboard() {
           <div className="flex-1 flex items-center justify-center min-h-[260px]">
             {loading ? (
               <Skeleton className="h-48 w-48 rounded-full" />
-            ) : !showPrices ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Layers className="w-10 h-10 text-gray-200 mb-2" />
-                <span className="text-xs font-bold uppercase tracking-wider">Financial data hidden</span>
-              </div>
             ) : productChartData.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <Package className="w-10 h-10 text-gray-200 mb-2" />
@@ -364,11 +348,6 @@ export default function Dashboard() {
           <div className="flex-1 flex items-center justify-center min-h-[260px]">
             {loading ? (
               <Skeleton className="h-48 w-48 rounded-full" />
-            ) : !showPrices ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Users className="w-10 h-10 text-gray-200 mb-2" />
-                <span className="text-xs font-bold uppercase tracking-wider">Financial data hidden</span>
-              </div>
             ) : customerChartData.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <Users className="w-10 h-10 text-gray-200 mb-2" />
@@ -482,7 +461,7 @@ export default function Dashboard() {
                     <tr key={p.id} className="hover:bg-gray-50/50">
                       <td className="px-5 py-3 font-semibold text-gray-800">{p.name}</td>
                       <td className="px-5 py-3 text-right text-gray-500 font-bold">{p.total_qty} {p.unit}</td>
-                      <td className="px-5 py-3 text-right font-black text-gray-900">{showPrices ? formatCurrency(p.total_revenue) : '***'}</td>
+                      <td className="px-5 py-3 text-right font-black text-gray-900">{formatCurrency(p.total_revenue)}</td>
                     </tr>
                   ))}
                   {!loading && topProducts.length === 0 && (
@@ -524,7 +503,7 @@ export default function Dashboard() {
                     <tr key={c.id} className="hover:bg-gray-50/50">
                       <td className="px-5 py-3 font-semibold text-gray-800">{c.name}</td>
                       <td className="px-5 py-3 text-right text-gray-500 font-bold">{c.sale_count} sales</td>
-                      <td className="px-5 py-3 text-right font-black text-gray-900">{showPrices ? formatCurrency(c.total_spent) : '***'}</td>
+                      <td className="px-5 py-3 text-right font-black text-gray-900">{formatCurrency(c.total_spent)}</td>
                     </tr>
                   ))}
                   {!loading && topCustomers.length === 0 && (

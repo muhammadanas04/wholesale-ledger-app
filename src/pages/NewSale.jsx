@@ -12,17 +12,91 @@ export default function NewSale() {
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState([{ product_id: '', qty: '', total_price: '', weight: '' }])
   const [saving, setSaving] = useState(false)
+  const [roundingConfig, setRoundingConfig] = useState(null)
+  const [recentSales, setRecentSales] = useState([])
+  const [discount, setDiscount] = useState('')
+  const [finalValue, setFinalValue] = useState('')
+  const [singleProductMode, setSingleProductMode] = useState(false)
+
+  // Calculate raw subtotal of items in Rupees
+  const subtotal = items.reduce((s, item) => {
+    const price = Number(item.total_price) || 0
+    return s + price
+  }, 0)
+
+  async function loadRecentSales() {
+    try {
+      const list = await ipc('sales:list', { limit: 10 })
+      setRecentSales(list || [])
+    } catch (e) {
+      console.error('Failed to load recent sales:', e)
+    }
+  }
 
   useEffect(() => {
     async function load() {
+      const prods = await ipc('products:list', { limit: 1000 }) || []
       setCustomers(await ipc('customers:list') || [])
-      setProducts(await ipc('products:list') || [])
+      setProducts(prods)
+      loadRecentSales()
+      
+      const singleProductVal = await ipc('meta:get', 'single_product_mode')
+      const isSingleProduct = singleProductVal === 'true'
+      setSingleProductMode(isSingleProduct)
+      
+      if (isSingleProduct && prods.length > 0) {
+        setItems([{ product_id: String(prods[0].id), qty: '', total_price: '', weight: '' }])
+      }
+      
+      const rulesVal = await ipc('meta:get', 'rounding_rules')
+      if (rulesVal) {
+        try {
+          setRoundingConfig(JSON.parse(rulesVal))
+        } catch (e) {
+          console.error('Failed to parse rounding rules:', e)
+        }
+      }
     }
     load()
   }, [])
 
+  // Bi-directional auto-calculation: when subtotal changes, adjust discount or finalValue
+  useEffect(() => {
+    if (discount !== '') {
+      const d = Number(discount) || 0
+      const f = Math.max(0, subtotal - d)
+      setFinalValue(f > 0 ? f.toFixed(2) : '')
+    } else if (finalValue !== '') {
+      const f = Number(finalValue) || 0
+      const d = Math.max(0, subtotal - f)
+      setDiscount(d > 0 ? d.toFixed(2) : '')
+    }
+  }, [subtotal])
+
+  const handleDiscountChange = (val) => {
+    setDiscount(val)
+    if (val === '') {
+      setFinalValue('')
+    } else {
+      const d = Number(val) || 0
+      const f = Math.max(0, subtotal - d)
+      setFinalValue(f > 0 ? f.toFixed(2) : '')
+    }
+  }
+
+  const handleFinalValueChange = (val) => {
+    setFinalValue(val)
+    if (val === '') {
+      setDiscount('')
+    } else {
+      const f = Number(val) || 0
+      const d = Math.max(0, subtotal - f)
+      setDiscount(d > 0 ? d.toFixed(2) : '')
+    }
+  }
+
   function addItem() {
-    setItems([...items, { product_id: '', qty: '', total_price: '', weight: '' }])
+    setItems([...items, { product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_price: '', weight: '' }])
   }
 
   function removeItem(i) {
@@ -35,11 +109,6 @@ export default function NewSale() {
     setItems(next)
   }
 
-  const total = items.reduce((s, item) => {
-    const price = Number(item.total_price) || 0
-    return s + price
-  }, 0)
-
   const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN')}`
 
   async function handleSubmit(e) {
@@ -49,6 +118,7 @@ export default function NewSale() {
       customer_id: Number(customerId),
       date,
       notes: notes || null,
+      discount: !roundingConfig?.enabled && discount ? Number(discount) : 0,
       items: items.map((i) => {
         const qty = Number(i.qty) || 0
         const totalPrice = Number(i.total_price) || 0
@@ -70,19 +140,30 @@ export default function NewSale() {
     setSaving(true)
     const finalData = {
       ...saleData,
+      total_amount: Math.round(subtotal * 100),
+      discount: Math.round((saleData.discount || 0) * 100),
       items: saleData.items.map(i => ({
         ...i,
         unit_price: Math.round(i.unit_price * 100)
       }))
     }
 
-    await ipc('sales:add', finalData)
-    toast.success('Sale saved successfully')
-    setCustomerId('')
-    setDate(new Date().toISOString().slice(0, 10))
-    setNotes('')
-    setItems([{ product_id: '', qty: '', total_price: '', weight: '' }])
-    setSaving(false)
+    try {
+      await ipc('sales:add', finalData)
+      toast.success('Sale saved successfully')
+      setCustomerId('')
+      setDate(new Date().toISOString().slice(0, 10))
+      setNotes('')
+      setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_price: '', weight: '' }])
+      setDiscount('')
+      setFinalValue('')
+      loadRecentSales()
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to save sale')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -99,7 +180,7 @@ export default function NewSale() {
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               required
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
             >
               <option value="">Select customer</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -130,15 +211,21 @@ export default function NewSale() {
 
           {items.map((item, i) => (
             <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
-              <select
-                value={item.product_id}
-                onChange={(e) => updateItem(i, 'product_id', e.target.value)}
-                required
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="">Product</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
-              </select>
+              {singleProductMode ? (
+                <div className="flex-1 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600 font-medium">
+                  {products[0] ? `${products[0].name} (${products[0].unit})` : 'Product'}
+                </div>
+              ) : (
+                <select
+                  value={item.product_id}
+                  onChange={(e) => updateItem(i, 'product_id', e.target.value)}
+                  required
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                >
+                  <option value="">Product</option>
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                </select>
+              )}
               <input
                 type="number"
                 step="any"
@@ -173,19 +260,128 @@ export default function NewSale() {
             </div>
           ))}
 
-          <div className="text-right text-lg font-bold text-gray-800 pt-2">
-            Total: {fmt(Math.round(total * 100))}
+          {/* Manual Discount & Final Value inputs - only shown when automatic rules are off */}
+          {roundingConfig && !roundingConfig.enabled && (
+            <div className="border-t border-gray-100 pt-3 space-y-2 flex flex-col items-end">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Discount (₹):</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={subtotal}
+                  placeholder="0.00"
+                  value={discount}
+                  onChange={(e) => handleDiscountChange(e.target.value)}
+                  className="w-36 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right font-semibold"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Final Value (₹):</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={subtotal}
+                  placeholder="0.00"
+                  value={finalValue}
+                  onChange={(e) => handleFinalValueChange(e.target.value)}
+                  className="w-36 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right font-semibold text-blue-600 focus:text-blue-700 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Summary Display */}
+          <div className="text-right text-lg font-bold text-gray-800 pt-2 border-t border-gray-150">
+            {roundingConfig && !roundingConfig.enabled && discount && Number(discount) > 0 ? (
+              <div className="space-y-1 text-sm font-semibold">
+                <div className="text-gray-500">
+                  Subtotal: {fmt(Math.round(subtotal * 100))}
+                </div>
+                <div className="text-emerald-600">
+                  Discount: -{fmt(Math.round(Number(discount) * 100))}
+                </div>
+                <div className="text-lg font-black text-slate-900 pt-1">
+                  Net Total: {fmt(Math.round((subtotal - Number(discount)) * 100))}
+                </div>
+              </div>
+            ) : (
+              `Total: ${fmt(Math.round(subtotal * 100))}`
+            )}
           </div>
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md"
         >
           {saving ? 'Saving...' : 'Save Sale'}
         </button>
       </form>
+
+      {/* Recent Sales History Section */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-100 font-black text-gray-900 text-sm uppercase tracking-widest">
+          Recent Sales History
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider border-b border-gray-200">
+              <tr>
+                <th className="text-left px-6 py-3.5 w-32">Date</th>
+                <th className="text-left px-6 py-3.5">Customer</th>
+                <th className="text-right px-6 py-3.5 w-40">Original Value</th>
+                <th className="text-right px-6 py-3.5 w-40">Discount</th>
+                <th className="text-right px-6 py-3.5 w-40">Final Value</th>
+                <th className="text-left px-6 py-3.5">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {recentSales.map((sale) => {
+                const sub = sale.total_amount
+                const disc = sale.discount || 0
+                const finalVal = sub - disc
+
+                return (
+                  <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                      {sale.date}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-gray-900">
+                      {sale.customer_name}
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
+                      {fmt(sub)}
+                    </td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap font-bold">
+                      {disc > 0 ? (
+                        <span className="text-emerald-600">-{fmt(disc)}</span>
+                      ) : (
+                        <span className="text-gray-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-slate-900 whitespace-nowrap">
+                      {fmt(finalVal)}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
+                      {sale.notes || '-'}
+                    </td>
+                  </tr>
+                )
+              })}
+              {recentSales.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-400 italic">
+                    No sales recorded yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

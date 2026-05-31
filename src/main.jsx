@@ -34,7 +34,7 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.altKey || e.metaKey) {
+      if (e.altKey) {
         switch (e.key.toLowerCase()) {
           case 'd': navigate('/'); break
           case 'c': navigate('/customers'); break

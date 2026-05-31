@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -68,6 +68,7 @@ function migrate() {
       customer_id INTEGER NOT NULL REFERENCES customers(id),
       date TEXT NOT NULL,
       total_amount INTEGER NOT NULL,
+      discount INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
@@ -125,6 +126,14 @@ function migrate() {
   if (version < 3) {
     try {
       db.exec("ALTER TABLE stock_purchases ADD COLUMN weight REAL;")
+    } catch (e) {
+      // Column may already exist if created fresh
+    }
+  }
+
+  if (version < 4) {
+    try {
+      db.exec("ALTER TABLE sales ADD COLUMN discount INTEGER NOT NULL DEFAULT 0;")
     } catch (e) {
       // Column may already exist if created fresh
     }
@@ -193,7 +202,7 @@ function searchCustomers(query, { limit = 50, offset = 0, sortBy = 'name', order
 
 function recalculateBalance(customerId) {
   const salesTotal = db.prepare(`
-    SELECT COALESCE(SUM(total_amount), 0) AS total FROM sales WHERE customer_id = ?
+    SELECT COALESCE(SUM(total_amount - discount), 0) AS total FROM sales WHERE customer_id = ?
   `).get(customerId).total
 
   const paymentsTotal = db.prepare(`
@@ -337,10 +346,10 @@ function getSale(id) {
   return sale
 }
 
-function addSale({ customer_id, date, notes, items }) {
+function addSale({ customer_id, date, notes, items, discount = 0, total_amount }) {
   const insertSale = db.prepare(`
-    INSERT INTO sales (customer_id, date, total_amount, notes)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO sales (customer_id, date, total_amount, discount, notes)
+    VALUES (?, ?, ?, ?, ?)
   `)
 
   const insertItem = db.prepare(`
@@ -355,8 +364,9 @@ function addSale({ customer_id, date, notes, items }) {
   `)
 
   const transaction = db.transaction(() => {
-    const totalAmount = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
-    const result = insertSale.run(customer_id, date, totalAmount, notes || null)
+    const calculatedTotal = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
+    const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
+    const result = insertSale.run(customer_id, date, finalTotal, discount || 0, notes || null)
     const saleId = result.lastInsertRowid
 
     for (const item of items) {
@@ -485,7 +495,7 @@ function getTopProducts(startDate, endDate) {
 
 function getTopCustomers(startDate, endDate) {
   return db.prepare(`
-    SELECT c.id, c.name, COUNT(s.id) AS sale_count, SUM(s.total_amount) AS total_spent
+    SELECT c.id, c.name, COUNT(s.id) AS sale_count, SUM(s.total_amount - s.discount) AS total_spent
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
     WHERE s.date >= ? AND s.date <= ?
@@ -545,6 +555,7 @@ function buildLedgerQueries(filters = {}) {
       c.name    AS customer_name,
       s.date,
       s.total_amount AS amount,
+      s.discount,
       s.notes,
       (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight,
       s.id      AS reference_id,
@@ -560,6 +571,7 @@ function buildLedgerQueries(filters = {}) {
       c.name    AS customer_name,
       p.date,
       -p.amount AS amount,
+      0         AS discount,
       p.notes,
       NULL      AS weight,
       p.id      AS reference_id,
@@ -667,7 +679,7 @@ function getLedgerSummary(filters = {}) {
   const unionSql = parts.join(" UNION ALL ")
   const sql = `
     SELECT 
-      COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN type = 'sale' THEN amount - discount ELSE 0 END), 0) AS total_sales,
       COALESCE(SUM(CASE WHEN type = 'payment' THEN -amount ELSE 0 END), 0) AS total_payments,
       COUNT(*) AS entry_count
     FROM (

@@ -70,14 +70,10 @@ export default function Ledger() {
   // Dialog States
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null) // { id, type }
-  const [showPrices, setShowPrices] = useState(true)
   const [roundingConfig, setRoundingConfig] = useState(null)
 
   useEffect(() => {
     async function loadConfig() {
-      const val = await ipc('meta:get', 'show_price_ledger')
-      setShowPrices(val !== 'false')
-
       const rulesVal = await ipc('meta:get', 'rounding_rules')
       if (rulesVal) {
         try {
@@ -262,7 +258,16 @@ export default function Ledger() {
     const isSale = entry.type === 'sale'
     if (isSale) {
       pageDebit += entry.amount
-      const { discountInt, finalInt } = applyRounding(entry.amount, roundingConfig)
+      let discountInt = 0
+      let finalInt = 0
+      if (roundingConfig && roundingConfig.enabled) {
+        const rounded = applyRounding(entry.amount, roundingConfig)
+        discountInt = rounded.discountInt
+        finalInt = rounded.finalInt
+      } else {
+        discountInt = -(entry.discount || 0)
+        finalInt = entry.amount - (entry.discount || 0)
+      }
       pageDiscount += discountInt
       pageFinalValue += finalInt
     } else {
@@ -454,9 +459,14 @@ export default function Ledger() {
                     let discountInt = 0
                     let finalInt = 0
                     if (isSale) {
-                      const result = applyRounding(entry.amount, roundingConfig)
-                      discountInt = result.discountInt
-                      finalInt = result.finalInt
+                      if (roundingConfig && roundingConfig.enabled) {
+                        const result = applyRounding(entry.amount, roundingConfig)
+                        discountInt = result.discountInt
+                        finalInt = result.finalInt
+                      } else {
+                        discountInt = -(entry.discount || 0)
+                        finalInt = entry.amount - (entry.discount || 0)
+                      }
                     }
 
                     return (
@@ -484,34 +494,30 @@ export default function Ledger() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-orange-600">
-                          {isSale ? (showPrices ? formatCurrency(entry.amount) : '***') : '-'}
+                          {isSale ? formatCurrency(entry.amount) : '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-green-600">
-                          {!isSale ? (showPrices ? formatCurrency(-entry.amount) : '***') : '-'}
+                          {!isSale ? formatCurrency(-entry.amount) : '-'}
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           {isSale ? (
-                            showPrices ? (
-                              discountInt < 0 ? (
-                                <span className="font-bold text-red-500">
-                                  {formatCurrency(discountInt)}
-                                </span>
-                              ) : discountInt > 0 ? (
-                                <span className="font-bold text-emerald-600">
-                                  +{formatCurrency(discountInt)}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400 font-medium">-</span>
-                              )
+                            discountInt < 0 ? (
+                              <span className="font-bold text-red-500">
+                                {formatCurrency(discountInt)}
+                              </span>
+                            ) : discountInt > 0 ? (
+                              <span className="font-bold text-emerald-600">
+                                +{formatCurrency(discountInt)}
+                              </span>
                             ) : (
-                              '***'
+                              <span className="text-gray-400 font-medium">-</span>
                             )
                           ) : (
                             <span className="text-gray-400 font-medium">-</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                          {isSale ? (showPrices ? formatCurrency(finalInt) : '***') : '-'}
+                          {isSale ? formatCurrency(finalInt) : '-'}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}
@@ -545,30 +551,26 @@ export default function Ledger() {
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4 text-right font-black text-orange-600 whitespace-nowrap">
-                      {showPrices ? formatCurrency(pageDebit) : '***'}
+                      {formatCurrency(pageDebit)}
                     </td>
                     <td className="px-6 py-4 text-right font-black text-green-600 whitespace-nowrap">
-                      {showPrices ? formatCurrency(pageCredit) : '***'}
+                      {formatCurrency(pageCredit)}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap font-black">
-                      {showPrices ? (
-                        pageDiscount < 0 ? (
-                          <span className="text-red-500">
-                            {formatCurrency(pageDiscount)}
-                          </span>
-                        ) : pageDiscount > 0 ? (
-                          <span className="text-emerald-600">
-                            +{formatCurrency(pageDiscount)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 font-medium">-</span>
-                        )
+                      {pageDiscount < 0 ? (
+                        <span className="text-red-500">
+                          {formatCurrency(pageDiscount)}
+                        </span>
+                      ) : pageDiscount > 0 ? (
+                        <span className="text-emerald-600">
+                          +{formatCurrency(pageDiscount)}
+                        </span>
                       ) : (
-                        '***'
+                        <span className="text-gray-400 font-medium">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right font-black text-slate-950 whitespace-nowrap">
-                      {showPrices ? formatCurrency(pageFinalValue) : '***'}
+                      {formatCurrency(pageFinalValue)}
                     </td>
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4 no-print"></td>

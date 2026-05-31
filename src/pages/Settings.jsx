@@ -10,15 +10,12 @@ export default function Settings() {
     shop_address: '',
     shop_phone: '',
     currency_symbol: '₹',
-    show_price_dashboard: 'true',
-    show_price_customers: 'true',
-    show_price_payments: 'true',
-    show_price_ledger: 'true',
     layout_size: 'normal',
     gst_enabled: 'false',
     gst_number: '',
     gst_percentage: '18',
     gst_type: 'exclusive',
+    single_product_mode: 'false',
   })
 
   // Rounding Rules State
@@ -38,21 +35,29 @@ export default function Settings() {
   useEffect(() => {
     async function load() {
       const keys = [
-        'shop_name', 
+        'shop_name',
         'shop_address',
         'shop_phone',
-        'currency_symbol', 
-        'show_price_dashboard', 
-        'show_price_customers', 
-        'show_price_payments', 
-        'show_price_ledger',
+        'currency_symbol',
         'layout_size',
         'gst_enabled',
         'gst_number',
         'gst_percentage',
-        'gst_type'
+        'gst_type',
+        'single_product_mode'
       ]
-      const newConfig = { ...config }
+      const newConfig = {
+        shop_name: '',
+        shop_address: '',
+        shop_phone: '',
+        currency_symbol: '₹',
+        layout_size: 'normal',
+        gst_enabled: 'false',
+        gst_number: '',
+        gst_percentage: '18',
+        gst_type: 'exclusive',
+        single_product_mode: 'false'
+      }
       for (const key of keys) {
         const val = await ipc('meta:get', key)
         if (val !== null) newConfig[key] = val
@@ -95,7 +100,7 @@ export default function Settings() {
       for (const [key, value] of Object.entries(config)) {
         await ipc('meta:set', key, value)
       }
-      
+
       // Save rounding rules
       await ipc('meta:set', 'rounding_rules', JSON.stringify(roundingConfig))
       await ipc('meta:set', 'rounding_rules_updated_at', new Date().toISOString())
@@ -245,15 +250,14 @@ export default function Settings() {
                 />
               </div>
             </div>
-            
+
             <div className="pt-3 space-y-2">
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">GST Calculation Method</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${
-                  config.gst_type === 'exclusive' 
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-700' 
+                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${config.gst_type === 'exclusive'
+                    ? 'border-blue-600 bg-blue-50/50 text-blue-700'
                     : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-                }`}>
+                  }`}>
                   <input
                     type="radio"
                     name="gst_type"
@@ -268,11 +272,10 @@ export default function Settings() {
                   </div>
                 </label>
 
-                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${
-                  config.gst_type === 'inclusive' 
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-700' 
+                <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${config.gst_type === 'inclusive'
+                    ? 'border-blue-600 bg-blue-50/50 text-blue-700'
                     : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-                }`}>
+                  }`}>
                   <input
                     type="radio"
                     name="gst_type"
@@ -291,69 +294,13 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Display & Layout Preferences */}
+        {/* Layout Preferences */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
-            <SettingsIcon className="w-4 h-4 text-violet-500" /> Display & Layout Preferences
+            <SettingsIcon className="w-4 h-4 text-violet-500" /> Layout Preferences
           </div>
           <div className="p-5 space-y-4">
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Select which sections should display prices/balances:</p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={config.show_price_dashboard === 'true'}
-                  onChange={(e) => setConfig({ ...config, show_price_dashboard: e.target.checked ? 'true' : 'false' })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <div>
-                  <p className="text-sm font-bold text-gray-800">Dashboard</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show sales & inventory values</p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={config.show_price_customers === 'true'}
-                  onChange={(e) => setConfig({ ...config, show_price_customers: e.target.checked ? 'true' : 'false' })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <div>
-                  <p className="text-sm font-bold text-gray-800">Customers</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show outstanding client balances</p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={config.show_price_payments === 'true'}
-                  onChange={(e) => setConfig({ ...config, show_price_payments: e.target.checked ? 'true' : 'false' })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <div>
-                  <p className="text-sm font-bold text-gray-800">Payments</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show transaction amount figures</p>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 p-3.5 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/60 rounded-xl cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={config.show_price_ledger === 'true'}
-                  onChange={(e) => setConfig({ ...config, show_price_ledger: e.target.checked ? 'true' : 'false' })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <div>
-                  <p className="text-sm font-bold text-gray-800">Ledger</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Show Debit / Credit account logs</p>
-                </div>
-              </label>
-            </div>
-
-            <div className="pt-5 border-t border-gray-100 space-y-3">
+            <div className="space-y-3">
               <div>
                 <p className="text-sm font-bold text-gray-800">Application Layout Scale (Overall Size)</p>
                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Adjust the overall font and spacing scale of the application interface:</p>
@@ -364,16 +311,31 @@ export default function Settings() {
                     key={sz}
                     type="button"
                     onClick={() => setConfig({ ...config, layout_size: sz })}
-                    className={`flex-1 py-3 px-4 border rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                      config.layout_size === sz
+                    className={`flex-1 py-3 px-4 border rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${config.layout_size === sz
                         ? 'border-blue-600 bg-blue-50 text-blue-700 font-black shadow-sm'
                         : 'border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-800'
-                    }`}
+                      }`}
                   >
                     {sz === 'normal' ? 'Normal (100%)' : sz === 'large' ? 'Large (112%)' : 'Extra Large (125%)'}
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Single Product Mode</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">Hide the Products tab and auto-select the first product for all sales/purchases</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.single_product_mode === 'true'}
+                  onChange={(e) => setConfig({ ...config, single_product_mode: e.target.checked ? 'true' : 'false' })}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
             </div>
           </div>
         </div>
@@ -399,7 +361,7 @@ export default function Settings() {
             {/* Ceil Rule */}
             <div className="p-4 border border-emerald-100 bg-emerald-50/30 rounded-xl space-y-3">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200">Ceil</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200">Floor</span>
                 <span className="text-xs text-gray-500">Round down — drops matched digits to 0</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -433,7 +395,7 @@ export default function Settings() {
             {/* Floor Rule */}
             <div className="p-4 border border-blue-100 bg-blue-50/30 rounded-xl space-y-3">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">Floor</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">Ceil</span>
                 <span className="text-xs text-gray-500">Round up — drops matched digits to 0, adds carry</span>
               </div>
               <div className="grid grid-cols-2 gap-3">

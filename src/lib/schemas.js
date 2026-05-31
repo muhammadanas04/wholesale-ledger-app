@@ -24,6 +24,7 @@ export const saleSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   notes: z.string().nullable(),
   items: z.array(saleItemSchema).min(1, 'At least one item is required'),
+  discount: z.number().nonnegative('Discount must be a positive number').optional().nullable(),
 })
 
 export const paymentSchema = z.object({
