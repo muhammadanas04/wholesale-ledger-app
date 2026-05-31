@@ -272,6 +272,8 @@ export default function Ledger() {
       pageFinalValue += finalInt
     } else {
       pageCredit += -entry.amount
+      pageDiscount += entry.discount || 0
+      pageFinalValue += -entry.amount + (entry.discount || 0)
     }
   })
 
@@ -362,7 +364,14 @@ export default function Ledger() {
                     type="date"
                     value={dateFrom}
                     onChange={(e) => handleFilterChange(() => setDateFrom(e.target.value))}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
+                    onClick={(e) => {
+                      try {
+                        e.target.showPicker()
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm cursor-pointer"
                   />
                 </div>
               </div>
@@ -375,7 +384,14 @@ export default function Ledger() {
                     type="date"
                     value={dateTo}
                     onChange={(e) => handleFilterChange(() => setDateTo(e.target.value))}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
+                    onClick={(e) => {
+                      try {
+                        e.target.showPicker()
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm cursor-pointer"
                   />
                 </div>
               </div>
@@ -513,11 +529,17 @@ export default function Ledger() {
                               <span className="text-gray-400 font-medium">-</span>
                             )
                           ) : (
-                            <span className="text-gray-400 font-medium">-</span>
+                            entry.discount > 0 ? (
+                              <span className="font-bold text-emerald-600">
+                                +{formatCurrency(entry.discount)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 font-medium">-</span>
+                            )
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                          {isSale ? formatCurrency(finalInt) : '-'}
+                          {isSale ? formatCurrency(finalInt) : formatCurrency(-entry.amount + entry.discount)}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}

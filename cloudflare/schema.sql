@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   customer_id INTEGER NOT NULL,
   amount INTEGER NOT NULL,
+  discount INTEGER NOT NULL DEFAULT 0,
   date TEXT NOT NULL,
   notes TEXT,
   created_at TEXT DEFAULT (datetime('now')),

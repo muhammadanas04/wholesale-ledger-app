@@ -32,6 +32,7 @@ export const paymentSchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   notes: z.string().nullable(),
+  discount: z.number().nonnegative('Discount must be a positive number').optional().nullable(),
 })
 
 export const stockPurchaseSchema = z.object({

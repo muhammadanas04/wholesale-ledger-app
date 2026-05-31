@@ -34,11 +34,11 @@ export default function StockPurchase() {
     setProducts(productsList)
     setPurchases(data || [])
     setTotal(Math.ceil((count || 0) / LIMIT))
-    
+
     if (isSingleProduct && productsList.length > 0) {
       setForm(f => ({ ...f, product_id: String(productsList[0].id) }))
     }
-    
+
     setLoading(false)
   }
 
@@ -106,7 +106,26 @@ export default function StockPurchase() {
             type="date"
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
+            onClick={(e) => {
+              try {
+                e.target.showPicker()
+              } catch (err) {
+                console.error(err)
+              }
+            }}
             required
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
+          />
+          <input
+            placeholder="Firm Name"
+            value={form.firm_name}
+            onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            placeholder="Supplier"
+            value={form.supplier}
+            onChange={(e) => setForm({ ...form, supplier: e.target.value })}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <input
@@ -135,21 +154,10 @@ export default function StockPurchase() {
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
-          <input
-            placeholder="Firm Name"
-            value={form.firm_name}
-            onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Supplier"
-            value={form.supplier}
-            onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
+
         </div>
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-all"
         >

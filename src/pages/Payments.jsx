@@ -20,6 +20,7 @@ export default function Payments() {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
+  const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
   
   // Confirm dialog state
@@ -50,6 +51,7 @@ export default function Payments() {
       amount: Number(amount),
       date,
       notes: notes || null,
+      discount: discount ? Number(discount) : 0,
     }
 
     const result = paymentSchema.safeParse(paymentData)
@@ -61,9 +63,11 @@ export default function Payments() {
     await ipc('payments:add', {
       ...paymentData,
       amount: Math.round(paymentData.amount * 100),
+      discount: Math.round(paymentData.discount * 100),
     })
     setCustomerId('')
     setAmount('')
+    setDiscount('')
     setDate(new Date().toISOString().slice(0, 10))
     setNotes('')
     setSaving(false)
@@ -106,23 +110,38 @@ export default function Payments() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            onClick={(e) => {
+              try {
+                e.target.showPicker()
+              } catch (err) {
+                console.error(err)
+              }
+            }}
             required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
           />
           <input
             type="number"
             step="0.01"
-            placeholder="Amount (₹)"
+            placeholder="Amount Paid (₹)"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <input
+            type="number"
+            step="0.01"
+            placeholder="Discount (₹, optional)"
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
             placeholder="Notes (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm md:col-span-2"
           />
         </div>
         <button
@@ -143,6 +162,7 @@ export default function Payments() {
                 <th className="text-left px-5 py-3">Date</th>
                 <th className="text-left px-5 py-3">Customer</th>
                 <th className="text-right px-5 py-3">Amount</th>
+                <th className="text-right px-5 py-3">Discount</th>
                 <th className="text-left px-5 py-3">Notes</th>
                 <th className="text-center px-5 py-3">Action</th>
               </tr>
@@ -150,7 +170,7 @@ export default function Payments() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={5} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -159,6 +179,13 @@ export default function Payments() {
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.customer_name}</td>
                       <td className="px-5 py-3 text-right text-green-600 font-bold">{formatCurrency(p.amount)}</td>
+                      <td className="px-5 py-3 text-right text-emerald-600 font-bold">
+                        {p.discount > 0 ? (
+                          <span>+{formatCurrency(p.discount)}</span>
+                        ) : (
+                          <span className="text-gray-400 font-medium">-</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.notes || '-'}</td>
                       <td className="px-5 py-3 text-center">
                         <button onClick={() => confirmDelete(p.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -168,7 +195,7 @@ export default function Payments() {
                     </tr>
                   ))}
                   {payments.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
+                    <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
                   )}
                 </>
               )}

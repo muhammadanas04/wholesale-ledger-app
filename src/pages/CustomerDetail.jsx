@@ -479,9 +479,9 @@ export default function CustomerDetail() {
       date: p.date,
       desc: p.notes || 'Payment',
       original_amount: p.amount,
-      discount: 0,
-      final_amount: p.amount,
-      amount: -p.amount,
+      discount: p.discount || 0,
+      final_amount: p.amount + (p.discount || 0),
+      amount: -(p.amount + (p.discount || 0)),
       id: p.id
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
@@ -602,7 +602,6 @@ export default function CustomerDetail() {
                   <th className="text-right px-6 py-3">Original Value</th>
                   <th className="text-right px-6 py-3">Discount</th>
                   <th className="text-right px-6 py-3">Final Value</th>
-                  <th className="text-right px-6 py-3">Balance</th>
                   <th className="text-center px-6 py-3 no-print">Action</th>
                 </tr>
               </thead>
@@ -647,15 +646,15 @@ export default function CustomerDetail() {
                           <span className="text-gray-400 font-medium">-</span>
                         )
                       ) : (
-                        <span className="text-gray-400 font-medium">-</span>
+                        r.discount > 0 ? (
+                          <span className="text-emerald-600">+{formatCurrency(r.discount)}</span>
+                        ) : (
+                          <span className="text-gray-400 font-medium">-</span>
+                        )
                       )}
                     </td>
                     <td className={`px-6 py-4 text-right font-black whitespace-nowrap ${r.type === 'sale' ? 'text-slate-900' : 'text-green-600'}`}>
                       {r.type === 'sale' ? formatCurrency(r.final_amount) : `-${formatCurrency(r.final_amount)}`}
-                    </td>
-                    <td className="px-6 py-4 text-right font-black tracking-tight text-gray-750">
-                      {formatCurrency(Math.abs(r.running))}
-                      <span className="text-[10px] ml-1 uppercase">{r.running > 0 ? 'Dr' : 'Cr'}</span>
                     </td>
                     <td className="px-6 py-4 text-center no-print flex items-center justify-center gap-2">
                       {r.type === 'sale' && (
@@ -687,7 +686,7 @@ export default function CustomerDetail() {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No transactions yet</td></tr>
+                  <tr><td colSpan={showRateField ? 8 : 7} className="text-center py-12 text-gray-400 italic">No transactions yet</td></tr>
                 )}
               </tbody>
             </table>

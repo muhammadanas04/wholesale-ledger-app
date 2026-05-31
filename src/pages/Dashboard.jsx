@@ -209,14 +209,28 @@ export default function Dashboard() {
                 type="date"
                 value={dates.start}
                 onChange={(e) => setDates({ ...dates, start: e.target.value })}
-                className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28"
+                onClick={(e) => {
+                  try {
+                    e.target.showPicker()
+                  } catch (err) {
+                    console.error(err)
+                  }
+                }}
+                className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28 cursor-pointer"
               />
               <span className="text-gray-300 text-xs font-medium">to</span>
               <input
                 type="date"
                 value={dates.end}
                 onChange={(e) => setDates({ ...dates, end: e.target.value })}
-                className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28"
+                onClick={(e) => {
+                  try {
+                    e.target.showPicker()
+                  } catch (err) {
+                    console.error(err)
+                  }
+                }}
+                className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28 cursor-pointer"
               />
             </div>
           )}

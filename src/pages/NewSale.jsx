@@ -214,8 +214,15 @@ export default function NewSale() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              onClick={(e) => {
+                try {
+                  e.target.showPicker()
+                } catch (err) {
+                  console.error(err)
+                }
+              }}
               required
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
             />
           </div>
           <input
