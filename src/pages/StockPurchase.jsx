@@ -172,7 +172,7 @@ export default function StockPurchase() {
             <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="text-left px-5 py-3">Date</th>
-                <th className="text-left px-5 py-3">Product</th>
+                {!singleProductMode && <th className="text-left px-5 py-3">Product</th>}
                 <th className="text-right px-5 py-3">Qty</th>
                 <th className="text-right px-5 py-3">Total Cost</th>
                 <th className="text-left px-5 py-3">Firm Name</th>
@@ -182,14 +182,14 @@ export default function StockPurchase() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={singleProductMode ? 5 : 6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
                   {purchases.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
-                      <td className="px-5 py-3 font-medium text-gray-800">{p.product_name}</td>
+                      {!singleProductMode && <td className="px-5 py-3 font-medium text-gray-800">{p.product_name}</td>}
                       <td className="px-5 py-3 text-right font-bold">
                         <div>{p.qty} <span className="text-[10px] text-gray-400 uppercase">{p.unit}</span></div>
                         {p.weight > 0 && (
@@ -204,7 +204,7 @@ export default function StockPurchase() {
                     </tr>
                   ))}
                   {purchases.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
+                    <tr><td colSpan={singleProductMode ? 5 : 6} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
                   )}
                 </>
               )}

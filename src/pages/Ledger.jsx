@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw, Printer } from 'lucide-react'
+import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw, Printer, Pencil } from 'lucide-react'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -544,7 +544,16 @@ export default function Ledger() {
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}
                         </td>
-                        <td className="px-6 py-4 text-center no-print">
+                        <td className="px-6 py-4 text-center no-print flex items-center justify-center gap-1.5">
+                          {entry.type === 'sale' && (
+                            <Link
+                              to={`/sales/edit/${entry.reference_id}`}
+                              className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Edit Sale"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Link>
+                          )}
                           <button
                             onClick={() => handleConfirmDelete(entry.reference_id, entry.type)}
                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

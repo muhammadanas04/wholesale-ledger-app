@@ -44,6 +44,7 @@ function registerIpcHandlers() {
   ipcMain.handle('sales:get', wrap((_e, id) => db.getSale(id)))
   ipcMain.handle('sales:add', wrap((_e, data) => db.addSale(data)))
   ipcMain.handle('sales:delete', wrap((_e, id) => db.deleteSale(id)))
+  ipcMain.handle('sales:update', wrap((_e, id, data) => db.updateSale(id, data)))
 
   // ── Payments ───────────────────────────────────────────────────
   ipcMain.handle('payments:list', wrap((_e, args) => db.getPayments(args)))

@@ -17,11 +17,12 @@ export const formatPhone = (phone) => {
 
 export const formatDate = (dateString) => {
   if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return dateString
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
 }
 
 export const formatDateTime = (utcString) => {
@@ -39,14 +40,16 @@ export const formatDateTime = (utcString) => {
     return utcString
   }
 
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  const timeStr = date.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: true,
   })
+
+  return `${day}/${month}/${year}, ${timeStr}`
 }
 

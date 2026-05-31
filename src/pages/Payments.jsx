@@ -22,7 +22,7 @@ export default function Payments() {
   const [notes, setNotes] = useState('')
   const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
-  
+
   // Confirm dialog state
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
@@ -45,7 +45,7 @@ export default function Payments() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    
+
     const paymentData = {
       customer_id: Number(customerId),
       amount: Number(amount),
@@ -104,7 +104,7 @@ export default function Payments() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
           >
             <option value="">Select customer</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} (₹{(c.balance/100).toFixed(2)})</option>)}
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} (₹{(c.balance / 100).toFixed(2)})</option>)}
           </select>
           <input
             type="date"
@@ -163,6 +163,7 @@ export default function Payments() {
                 <th className="text-left px-5 py-3">Customer</th>
                 <th className="text-right px-5 py-3">Amount</th>
                 <th className="text-right px-5 py-3">Discount</th>
+                <th className="text-right px-5 py-3">Final Payment</th>
                 <th className="text-left px-5 py-3">Notes</th>
                 <th className="text-center px-5 py-3">Action</th>
               </tr>
@@ -170,7 +171,7 @@ export default function Payments() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={7} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -179,12 +180,15 @@ export default function Payments() {
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.customer_name}</td>
                       <td className="px-5 py-3 text-right text-green-600 font-bold">{formatCurrency(p.amount)}</td>
-                      <td className="px-5 py-3 text-right text-emerald-600 font-bold">
+                      <td className="px-5 py-3 text-right text-red-600 font-bold">
                         {p.discount > 0 ? (
-                          <span>+{formatCurrency(p.discount)}</span>
+                          <span>-{formatCurrency(p.discount)}</span>
                         ) : (
                           <span className="text-gray-400 font-medium">-</span>
                         )}
+                      </td>
+                      <td className="px-5 py-3 text-right text-slate-900 font-black whitespace-nowrap">
+                        {formatCurrency(p.amount - (p.discount || 0))}
                       </td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.notes || '-'}</td>
                       <td className="px-5 py-3 text-center">
@@ -195,7 +199,7 @@ export default function Payments() {
                     </tr>
                   ))}
                   {payments.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
                   )}
                 </>
               )}

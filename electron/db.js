@@ -344,7 +344,7 @@ function getSales({ limit = 50, offset = 0 } = {}) {
            (SELECT unit_price FROM sale_items WHERE sale_id = s.id LIMIT 1) AS rate
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    ORDER BY s.date DESC
+    ORDER BY s.date DESC, s.id DESC
     LIMIT ? OFFSET ?
   `).all(limit, offset)
 }
@@ -439,6 +439,68 @@ function deleteSale(id) {
   return true
 }
 
+function updateSale(saleId, { customer_id, date, notes, items, discount = 0, total_amount }) {
+  const oldSale = getSale(saleId)
+  if (!oldSale) throw new Error('Sale not found')
+
+  const updateSaleStmt = db.prepare(`
+    UPDATE sales
+    SET customer_id = ?, date = ?, total_amount = ?, discount = ?, notes = ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+
+  const insertItem = db.prepare(`
+    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+
+  const deleteItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?')
+
+  const restoreStock = db.prepare(`
+    UPDATE products
+    SET current_stock = current_stock + ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+
+  const deductStock = db.prepare(`
+    UPDATE products
+    SET current_stock = current_stock - ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+
+  const transaction = db.transaction(() => {
+    // 1. Restore stock levels for old items
+    for (const oldItem of oldSale.items) {
+      restoreStock.run(oldItem.qty, oldItem.product_id)
+    }
+
+    // 2. Delete old items
+    deleteItems.run(saleId)
+
+    // 3. Update the main sales record
+    const calculatedTotal = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
+    const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
+    updateSaleStmt.run(customer_id, date, finalTotal, discount || 0, notes || null, saleId)
+
+    // 4. Insert new items and deduct stock
+    for (const item of items) {
+      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null)
+      deductStock.run(item.qty, item.product_id)
+    }
+
+    // 5. Recalculate customer balance
+    recalculateBalance(oldSale.customer_id)
+    if (oldSale.customer_id !== customer_id) {
+      recalculateBalance(customer_id)
+    }
+
+    return saleId
+  })
+
+  transaction()
+  return getSale(saleId)
+}
+
 // ── Payments ───────────────────────────────────────────────────────
 
 function getPayments({ limit = 50, offset = 0 } = {}) {
@@ -446,7 +508,7 @@ function getPayments({ limit = 50, offset = 0 } = {}) {
     SELECT p.*, c.name AS customer_name
     FROM payments p
     JOIN customers c ON c.id = p.customer_id
-    ORDER BY p.date DESC
+    ORDER BY p.date DESC, p.id DESC
     LIMIT ? OFFSET ?
   `).all(limit, offset)
 }
@@ -767,6 +829,7 @@ module.exports = {
   getSalesCount,
   addSale,
   deleteSale,
+  updateSale,
   getPayments,
   getPaymentsByCustomer,
   getPaymentsCount,

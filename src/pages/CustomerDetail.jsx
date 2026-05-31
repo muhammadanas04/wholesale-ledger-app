@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer, Pencil } from 'lucide-react'
 import { formatCurrency, formatDate, formatPhone } from '../lib/formatters'
 import Skeleton from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -77,7 +77,7 @@ function BillInvoice({
 
   // Format date and time
   const saleDate = new Date(sale.created_at || sale.date)
-  const formattedDate = !isNaN(saleDate) ? saleDate.toLocaleDateString('en-CA') : sale.date
+  const formattedDate = !isNaN(saleDate) ? formatDate(saleDate) : sale.date
   const formattedTime = !isNaN(saleDate) ? saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''
 
   // GST & Rounding Calculations
@@ -356,6 +356,9 @@ export default function CustomerDetail() {
   const [showRateField, setShowRateField] = useState(true)
 
 
+  const [singleProductMode, setSingleProductMode] = useState(false)
+  const [productUnit, setProductUnit] = useState('')
+
   useEffect(() => {
     async function loadMeta() {
       const name = await ipc('meta:get', 'shop_name')
@@ -390,6 +393,21 @@ export default function CustomerDetail() {
 
       const rateFieldVal = await ipc('meta:get', 'show_rate_field')
       setShowRateField(rateFieldVal !== 'false')
+
+      const singleProductVal = await ipc('meta:get', 'single_product_mode')
+      const isSingle = singleProductVal === 'true'
+      setSingleProductMode(isSingle)
+
+      if (isSingle) {
+        try {
+          const prods = await ipc('products:list', { limit: 1 })
+          if (prods && prods.length > 0) {
+            setProductUnit(prods[0].unit)
+          }
+        } catch (e) {
+          console.error('Failed to load single product unit:', e)
+        }
+      }
     }
     loadMeta()
   }, [])
@@ -465,7 +483,9 @@ export default function CustomerDetail() {
       return {
         type: 'sale',
         date: s.date,
-        desc: s.weight > 0 ? `Sale #${s.id} (${s.weight} kg)` : `Sale #${s.id}`,
+        desc: singleProductMode
+          ? `Sale #${s.id} (${s.qty} ${productUnit || 'units'}${s.weight > 0 ? `, ${s.weight} kg` : ''})`
+          : (s.weight > 0 ? `Sale #${s.id} (${s.weight} kg)` : `Sale #${s.id}`),
         original_amount: originalVal,
         discount: discountVal,
         final_amount: finalVal,
@@ -484,7 +504,11 @@ export default function CustomerDetail() {
       amount: -(p.amount + (p.discount || 0)),
       id: p.id
     })),
-  ].sort((a, b) => b.date.localeCompare(a.date))
+  ].sort((a, b) => {
+    const dateComp = b.date.localeCompare(a.date)
+    if (dateComp !== 0) return dateComp
+    return b.id - a.id
+  })
 
   let running = customer.balance
   const rows = transactions.map((t) => {
@@ -673,6 +697,13 @@ export default function CustomerDetail() {
                           >
                             <FileText className="w-4 h-4" />
                           </button>
+                          <Link
+                            to={`/sales/edit/${r.id}`}
+                            className="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-all"
+                            title="Edit Sale"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Link>
                           <button
                             onClick={() => confirmDeleteSale(r.id)}
                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"

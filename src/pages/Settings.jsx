@@ -19,6 +19,11 @@ export default function Settings() {
     show_rate_field: 'true',
   })
 
+  const [singleProduct, setSingleProduct] = useState(null)
+  const [singleProductName, setSingleProductName] = useState('Main Product')
+  const [singleProductUnit, setSingleProductUnit] = useState('piece')
+  const [singleProductReorder, setSingleProductReorder] = useState('10')
+
   // Rounding Rules State
   const [roundingConfig, setRoundingConfig] = useState({
     enabled: false,
@@ -91,6 +96,25 @@ export default function Settings() {
         setSyncUrl(syncConfig.syncUrl)
       }
 
+      // Load single product details
+      try {
+        const prods = await ipc('products:list', { limit: 1 })
+        if (prods && prods.length > 0) {
+          const p = prods[0]
+          setSingleProduct(p)
+          setSingleProductName(p.name)
+          setSingleProductUnit(p.unit)
+          setSingleProductReorder(String(p.reorder_level))
+        } else {
+          setSingleProduct(null)
+          setSingleProductName('Main Product')
+          setSingleProductUnit('piece')
+          setSingleProductReorder('10')
+        }
+      } catch (e) {
+        console.error('Failed to load single product:', e)
+      }
+
       setLoading(false)
     }
     load()
@@ -107,6 +131,22 @@ export default function Settings() {
       // Save rounding rules
       await ipc('meta:set', 'rounding_rules', JSON.stringify(roundingConfig))
       await ipc('meta:set', 'rounding_rules_updated_at', new Date().toISOString())
+
+      // Save or create single product if single product mode is enabled
+      if (config.single_product_mode === 'true') {
+        const prodData = {
+          name: singleProductName || 'Main Product',
+          unit: singleProductUnit || 'piece',
+          reorder_level: Number(singleProductReorder) || 0
+        }
+        if (singleProduct?.id) {
+          await ipc('products:update', singleProduct.id, prodData)
+          setSingleProduct({ ...singleProduct, ...prodData })
+        } else {
+          const newProd = await ipc('products:add', prodData)
+          setSingleProduct(newProd)
+        }
+      }
 
       // Instantly apply dynamic layout scaling
       const sizeMap = {
@@ -358,6 +398,53 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Single Product Setup (only visible when Single Product Mode is enabled) */}
+        {config.single_product_mode === 'true' && (
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
+              <ShoppingBag className="w-4 h-4 text-blue-500" /> Single Product Configuration
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                  <input
+                    value={singleProductName}
+                    onChange={(e) => setSingleProductName(e.target.value)}
+                    placeholder="e.g. Basmati Rice"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit of Measure</label>
+                  <select
+                    value={singleProductUnit}
+                    onChange={(e) => setSingleProductUnit(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-semibold text-slate-800"
+                  >
+                    {['piece', 'kg', 'g', 'box', 'litre', 'bottle', 'bag', 'dozen'].map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level (Low Stock Trigger)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={singleProductReorder}
+                    onChange={(e) => setSingleProductReorder(e.target.value)}
+                    placeholder="e.g. 10"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Rounding & Discount Rules */}
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">

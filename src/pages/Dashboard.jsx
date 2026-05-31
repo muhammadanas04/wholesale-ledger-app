@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [shopName, setShopName] = useState('Wholesale Ledger')
   const [activeTab, setActiveTab] = useState('products') // products, customers, movements
 
+  const [singleProductMode, setSingleProductMode] = useState(false)
+  const [singleProduct, setSingleProduct] = useState(null)
   const [stats, setStats] = useState({ sales: 0, stockValue: 0, balance: 0 })
   const [lowStock, setLowStock] = useState([])
   const [topProducts, setTopProducts] = useState([])
@@ -101,7 +103,7 @@ export default function Dashboard() {
       if (!dates.start || !dates.end) return
       setLoading(true)
       try {
-        const [sales, products, customers, invVal, movements, low, allCusts, name] = await Promise.all([
+        const [sales, products, customers, invVal, movements, low, allCusts, name, singleProductVal, prodsList] = await Promise.all([
           ipc('reports:sales-range', dates.start, dates.end),
           ipc('reports:top-products', dates.start, dates.end),
           ipc('reports:top-customers', dates.start, dates.end),
@@ -110,12 +112,26 @@ export default function Dashboard() {
           ipc('products:low-stock'),
           ipc('customers:list', { limit: 1000 }),
           ipc('meta:get', 'shop_name'),
+          ipc('meta:get', 'single_product_mode'),
+          ipc('products:list', { limit: 1 }),
         ])
 
         const totalSales = (sales || []).reduce((sum, s) => sum + s.total_amount - (s.discount || 0), 0)
         const totalBalance = (allCusts || []).reduce((sum, c) => sum + c.balance, 0)
 
         if (name) setShopName(name)
+        const isSingle = singleProductVal === 'true'
+        setSingleProductMode(isSingle)
+        if (isSingle) {
+          setActiveTab('customers')
+          if (prodsList && prodsList.length > 0) {
+            setSingleProduct(prodsList[0])
+          } else {
+            setSingleProduct(null)
+          }
+        } else {
+          setSingleProduct(null)
+        }
 
         setStats({
           sales: totalSales,
@@ -277,7 +293,13 @@ export default function Dashboard() {
           value={formatCurrency(stats.stockValue)} 
           color="bg-blue-600" 
           loading={loading} 
-        />
+        >
+          {singleProductMode && singleProduct && (
+            <span className="text-[10px] font-bold text-blue-600 block mt-1.5 uppercase tracking-wider">
+              Stock: {singleProduct.current_stock} {singleProduct.unit}
+            </span>
+          )}
+        </StatCard>
         <StatCard 
           icon={Users} 
           label="Total Outstanding Balance" 
@@ -292,61 +314,63 @@ export default function Dashboard() {
       </div>
 
       {/* Analytics Charts Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 ${singleProductMode ? '' : 'xl:grid-cols-2'} gap-6`}>
         {/* Top Products Donut */}
-        <div className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <Layers className="w-4 h-4" />
+        {!singleProductMode && (
+          <div className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 text-sm tracking-tight">Revenue contribution by Product</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">Top performing products value share</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-black text-gray-900 text-sm tracking-tight">Revenue contribution by Product</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">Top performing products value share</p>
+            <div className="flex-1 flex items-center justify-center min-h-[260px]">
+              {loading ? (
+                <Skeleton className="h-48 w-48 rounded-full" />
+              ) : productChartData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                  <Package className="w-10 h-10 text-gray-200 mb-2" />
+                  <span className="text-xs font-bold uppercase tracking-wider">No sales records in period</span>
+                </div>
+              ) : (
+                <div className="w-full h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={productChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {productChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHARTS_COLORS[index % CHARTS_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(val) => formatCurrency(val)}
+                        contentStyle={{ background: '#fff', borderRadius: '16px', border: '1px solid #f3f4f6', boxShadow: '0 4px 12px -2px rgba(0,0,0,0.06)' }}
+                        labelStyle={{ fontWeight: 'bold' }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36} 
+                        iconType="circle"
+                        iconSize={6}
+                        wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', color: '#6b7280' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex-1 flex items-center justify-center min-h-[260px]">
-            {loading ? (
-              <Skeleton className="h-48 w-48 rounded-full" />
-            ) : productChartData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Package className="w-10 h-10 text-gray-200 mb-2" />
-                <span className="text-xs font-bold uppercase tracking-wider">No sales records in period</span>
-              </div>
-            ) : (
-              <div className="w-full h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={productChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={85}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {productChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CHARTS_COLORS[index % CHARTS_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(val) => formatCurrency(val)}
-                      contentStyle={{ background: '#fff', borderRadius: '16px', border: '1px solid #f3f4f6', boxShadow: '0 4px 12px -2px rgba(0,0,0,0.06)' }}
-                      labelStyle={{ fontWeight: 'bold' }}
-                    />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      height={36} 
-                      iconType="circle"
-                      iconSize={6}
-                      wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', color: '#6b7280' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Top Customers Donut */}
         <div className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
@@ -409,17 +433,19 @@ export default function Dashboard() {
         <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 no-print">
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-wide">Detailed Business Breakdown</h3>
           <div className="flex items-center gap-1.5 bg-gray-200/60 p-0.5 rounded-xl self-start sm:self-auto">
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
-                activeTab === 'products'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <Package className="w-3.5 h-3.5" />
-              Products
-            </button>
+            {!singleProductMode && (
+              <button
+                onClick={() => setActiveTab('products')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+                  activeTab === 'products'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                Products
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('customers')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
@@ -449,46 +475,48 @@ export default function Dashboard() {
         <div className="p-6 space-y-8 print:p-0 print:space-y-10">
           
           {/* 1. Top Selling Products Section */}
-          <div className={`${activeTab === 'products' ? 'block' : 'hidden'} print:block`}>
-            <div className="hidden print:flex items-center gap-2 mb-3 border-b pb-2">
-              <Package className="w-4 h-4 text-blue-500" />
-              <h3 className="font-bold text-gray-800 text-sm uppercase">Top Selling Products</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black">
-                  <tr>
-                    <th className="text-left px-5 py-3 border-b border-gray-100">Product Name</th>
-                    <th className="text-right px-5 py-3 border-b border-gray-100">Quantity Sold</th>
-                    <th className="text-right px-5 py-3 border-b border-gray-100">Revenue Generated</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loading ? (
+          {!singleProductMode && (
+            <div className={`${activeTab === 'products' ? 'block' : 'hidden'} print:block`}>
+              <div className="hidden print:flex items-center gap-2 mb-3 border-b pb-2">
+                <Package className="w-4 h-4 text-blue-500" />
+                <h3 className="font-bold text-gray-800 text-sm uppercase">Top Selling Products</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black">
                     <tr>
-                      <td colSpan={3} className="px-5 py-6">
-                        <Skeleton className="h-6 w-full mb-2" />
-                        <Skeleton className="h-6 w-full" />
-                      </td>
+                      <th className="text-left px-5 py-3 border-b border-gray-100">Product Name</th>
+                      <th className="text-right px-5 py-3 border-b border-gray-100">Quantity Sold</th>
+                      <th className="text-right px-5 py-3 border-b border-gray-100">Revenue Generated</th>
                     </tr>
-                  ) : topProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-gray-50/50">
-                      <td className="px-5 py-3 font-semibold text-gray-800">{p.name}</td>
-                      <td className="px-5 py-3 text-right text-gray-500 font-bold">{p.total_qty} {p.unit}</td>
-                      <td className="px-5 py-3 text-right font-black text-gray-900">{formatCurrency(p.total_revenue)}</td>
-                    </tr>
-                  ))}
-                  {!loading && topProducts.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="text-center py-8 text-gray-400 font-bold uppercase tracking-wider text-xs">
-                        No transactions registered in this period
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={3} className="px-5 py-6">
+                          <Skeleton className="h-6 w-full mb-2" />
+                          <Skeleton className="h-6 w-full" />
+                        </td>
+                      </tr>
+                    ) : topProducts.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50/50">
+                        <td className="px-5 py-3 font-semibold text-gray-800">{p.name}</td>
+                        <td className="px-5 py-3 text-right text-gray-500 font-bold">{p.total_qty} {p.unit}</td>
+                        <td className="px-5 py-3 text-right font-black text-gray-900">{formatCurrency(p.total_revenue)}</td>
+                      </tr>
+                    ))}
+                    {!loading && topProducts.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="text-center py-8 text-gray-400 font-bold uppercase tracking-wider text-xs">
+                          No transactions registered in this period
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 2. Top Customers Section */}
           <div className={`${activeTab === 'customers' ? 'block' : 'hidden'} print:block print:page-break-before`}>

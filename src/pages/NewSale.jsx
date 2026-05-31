@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { saleSchema } from '../lib/schemas'
 import { toast } from 'sonner'
+import { formatDate } from '../lib/formatters'
+import { Pencil } from 'lucide-react'
 
 export default function NewSale() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const isEditMode = !!id
+
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [customerId, setCustomerId] = useState('')
@@ -45,7 +52,7 @@ export default function NewSale() {
       const isSingleProduct = singleProductVal === 'true'
       setSingleProductMode(isSingleProduct)
       
-      if (isSingleProduct && prods.length > 0) {
+      if (isSingleProduct && prods.length > 0 && !isEditMode) {
         setItems([{ product_id: String(prods[0].id), qty: '', rate: '', total_price: '', weight: '' }])
       }
       
@@ -60,9 +67,35 @@ export default function NewSale() {
 
       const rateFieldVal = await ipc('meta:get', 'show_rate_field')
       setShowRateField(rateFieldVal !== 'false')
+
+      if (isEditMode) {
+        try {
+          const sale = await ipc('sales:get', Number(id))
+          if (sale) {
+            setCustomerId(String(sale.customer_id))
+            setDate(sale.date)
+            setNotes(sale.notes || '')
+            setDiscount(sale.discount ? (sale.discount / 100).toFixed(2) : '')
+            
+            setItems(sale.items.map(item => ({
+              product_id: String(item.product_id),
+              qty: String(item.qty),
+              rate: String(item.unit_price / 100),
+              total_price: ((item.qty * item.unit_price) / 100).toFixed(2),
+              weight: item.weight ? String(item.weight) : ''
+            })))
+          } else {
+            toast.error('Sale not found')
+            navigate('/new-sale')
+          }
+        } catch (e) {
+          console.error(e)
+          toast.error('Failed to load sale details')
+        }
+      }
     }
     load()
-  }, [])
+  }, [id])
 
   // Bi-directional auto-calculation: when subtotal changes, adjust discount or finalValue
   useEffect(() => {
@@ -174,18 +207,24 @@ export default function NewSale() {
     }
 
     try {
-      await ipc('sales:add', finalData)
-      toast.success('Sale saved successfully')
-      setCustomerId('')
-      setDate(new Date().toISOString().slice(0, 10))
-      setNotes('')
-      setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_price: '', weight: '' }])
-      setDiscount('')
-      setFinalValue('')
-      loadRecentSales()
+      if (isEditMode) {
+        await ipc('sales:update', Number(id), finalData)
+        toast.success('Sale updated successfully')
+        navigate(`/customers/${customerId}`)
+      } else {
+        await ipc('sales:add', finalData)
+        toast.success('Sale saved successfully')
+        setCustomerId('')
+        setDate(new Date().toISOString().slice(0, 10))
+        setNotes('')
+        setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_price: '', weight: '' }])
+        setDiscount('')
+        setFinalValue('')
+        loadRecentSales()
+      }
     } catch (err) {
       console.error(err)
-      toast.error('Failed to save sale')
+      toast.error(isEditMode ? 'Failed to update sale' : 'Failed to save sale')
     } finally {
       setSaving(false)
     }
@@ -195,7 +234,9 @@ export default function NewSale() {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <ShoppingCart className="w-6 h-6 text-gray-700" />
-        <h1 className="text-2xl font-bold text-gray-800">New Sale</h1>
+        <h1 className="text-2xl font-bold text-gray-800">
+          {isEditMode ? `Edit Sale #${id}` : 'New Sale'}
+        </h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -234,72 +275,135 @@ export default function NewSale() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-700">Line Items</h2>
-            <button type="button" onClick={addItem} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
-              <Plus className="w-4 h-4" /> Add Item
-            </button>
-          </div>
-
-          {items.map((item, i) => (
-            <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
-              {singleProductMode ? (
-                <div className="flex-1 px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600 font-medium">
-                  {products[0] ? `${products[0].name} (${products[0].unit})` : 'Product'}
+          {singleProductMode ? (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-gray-700 uppercase text-xs tracking-widest">Sale Details</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Product</label>
+                  <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-650 font-bold h-[38px] flex items-center">
+                    {products[0] ? `${products[0].name} (${products[0].unit})` : 'Product'}
+                  </div>
                 </div>
-              ) : (
-                <select
-                  value={item.product_id}
-                  onChange={(e) => updateItem(i, 'product_id', e.target.value)}
-                  required
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                >
-                  <option value="">Product</option>
-                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
-                </select>
-              )}
-              <input
-                type="number"
-                step="any"
-                placeholder="Qty"
-                value={item.qty}
-                onChange={(e) => updateItem(i, 'qty', e.target.value)}
-                required
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                step="any"
-                placeholder="Rate (₹)"
-                value={item.rate}
-                onChange={(e) => updateItem(i, 'rate', e.target.value)}
-                required
-                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                step="any"
-                placeholder="Weight"
-                value={item.weight}
-                onChange={(e) => updateItem(i, 'weight', e.target.value)}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Total Price (₹)"
-                value={item.total_price}
-                onChange={(e) => updateItem(i, 'total_price', e.target.value)}
-                required
-                className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-              {items.length > 1 && (
-                <button type="button" onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600">
-                  <Trash2 className="w-4 h-4" />
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Quantity {products[0] ? `(${products[0].unit})` : ''}
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0"
+                    value={items[0]?.qty || ''}
+                    onChange={(e) => updateItem(0, 'qty', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                  />
+                </div>
+                {showRateField && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Rate (₹)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      value={items[0]?.rate || ''}
+                      onChange={(e) => updateItem(0, 'rate', e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg, optional)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    value={items[0]?.weight || ''}
+                    onChange={(e) => updateItem(0, 'weight', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2 md:col-span-4">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Total Price (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={items[0]?.total_price || ''}
+                    onChange={(e) => updateItem(0, 'total_price', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-black text-blue-600 focus:text-blue-700 bg-blue-50/20 focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-700">Line Items</h2>
+                <button type="button" onClick={addItem} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+                  <Plus className="w-4 h-4" /> Add Item
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+
+              {items.map((item, i) => (
+                <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
+                  <select
+                    value={item.product_id}
+                    onChange={(e) => updateItem(i, 'product_id', e.target.value)}
+                    required
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                  >
+                    <option value="">Product</option>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Qty"
+                    value={item.qty}
+                    onChange={(e) => updateItem(i, 'qty', e.target.value)}
+                    required
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Rate (₹)"
+                    value={item.rate}
+                    onChange={(e) => updateItem(i, 'rate', e.target.value)}
+                    required
+                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Weight"
+                    value={item.weight}
+                    onChange={(e) => updateItem(i, 'weight', e.target.value)}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Total Price (₹)"
+                    value={item.total_price}
+                    onChange={(e) => updateItem(i, 'total_price', e.target.value)}
+                    required
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  {items.length > 1 && (
+                    <button type="button" onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
 
           {/* Manual Discount & Final Value inputs - only shown when automatic rules are off */}
           {roundingConfig && !roundingConfig.enabled && (
@@ -358,7 +462,7 @@ export default function NewSale() {
           disabled={saving}
           className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md"
         >
-          {saving ? 'Saving...' : 'Save Sale'}
+          {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Sale'}
         </button>
       </form>
 
@@ -380,6 +484,7 @@ export default function NewSale() {
                 <th className="text-right px-6 py-3.5 w-40">Discount</th>
                 <th className="text-right px-6 py-3.5 w-40">Final Value</th>
                 <th className="text-left px-6 py-3.5">Notes</th>
+                <th className="text-center px-6 py-3.5 w-24">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -391,7 +496,7 @@ export default function NewSale() {
                 return (
                   <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
-                      {sale.date}
+                      {formatDate(sale.date)}
                     </td>
                     <td className="px-6 py-4 font-bold text-gray-900">
                       {sale.customer_name}
@@ -423,12 +528,21 @@ export default function NewSale() {
                     <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                       {sale.notes || '-'}
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <Link
+                        to={`/sales/edit/${sale.id}`}
+                        className="p-1.5 inline-block text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Edit Sale"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Link>
+                    </td>
                   </tr>
                 )
               })}
               {recentSales.length === 0 && (
                 <tr>
-                  <td colSpan={showRateField ? 9 : 8} className="text-center py-8 text-gray-400 italic">
+                  <td colSpan={showRateField ? 10 : 9} className="text-center py-8 text-gray-400 italic">
                     No sales recorded yet.
                   </td>
                 </tr>
