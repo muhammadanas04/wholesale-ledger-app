@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS stock_purchases (
   firm_name TEXT,
   date TEXT NOT NULL,
   weight REAL,
+  location TEXT,
+  bill_no TEXT,
+  vehicle_number TEXT,
+  driver_name TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0

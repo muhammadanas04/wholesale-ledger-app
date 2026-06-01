@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 7
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -59,6 +59,10 @@ function migrate() {
       firm_name TEXT,
       date TEXT NOT NULL,
       weight REAL,
+      location TEXT,
+      bill_no TEXT,
+      vehicle_number TEXT,
+      driver_name TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0
@@ -155,6 +159,21 @@ function migrate() {
     } catch (e) {
       // Column may already exist
     }
+  }
+
+  if (version < 7) {
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN location TEXT;")
+    } catch (e) {}
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN bill_no TEXT;")
+    } catch (e) {}
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN vehicle_number TEXT;")
+    } catch (e) {}
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN driver_name TEXT;")
+    } catch (e) {}
   }
 
   if (version < SCHEMA_VERSION) {
@@ -304,10 +323,10 @@ function getStockPurchase(id) {
   `).get(id)
 }
 
-function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name }) {
+function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name }) {
   const insertPurchase = db.prepare(`
-    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight, firm_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const updateStock = db.prepare(`
@@ -324,7 +343,11 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight,
       supplier || null,
       date,
       weight !== undefined ? weight : null,
-      firm_name || null
+      firm_name || null,
+      location || null,
+      bill_no || null,
+      vehicle_number || null,
+      driver_name || null
     )
     updateStock.run(qty, product_id)
     return result.lastInsertRowid

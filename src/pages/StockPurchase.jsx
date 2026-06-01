@@ -11,8 +11,41 @@ const LIMIT = 10
 
 export default function StockPurchase() {
   const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ product_id: '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '' })
+  const [form, setForm] = useState({ product_id: '', qty: '', rate: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '', location: '', bill_no: '', vehicle_number: '', driver_name: '' })
   const [purchases, setPurchases] = useState([])
+
+  const handleQtyChange = (val) => {
+    const qtyNum = parseFloat(val)
+    const rateNum = parseFloat(form.rate)
+    
+    let newTotal = form.total_cost
+    if (!isNaN(qtyNum) && !isNaN(rateNum)) {
+      newTotal = String(Math.round(qtyNum * rateNum * 100) / 100)
+    }
+    setForm(f => ({ ...f, qty: val, total_cost: newTotal }))
+  }
+
+  const handleRateChange = (val) => {
+    const rateNum = parseFloat(val)
+    const qtyNum = parseFloat(form.qty)
+
+    let newTotal = form.total_cost
+    if (!isNaN(rateNum) && !isNaN(qtyNum)) {
+      newTotal = String(Math.round(qtyNum * rateNum * 100) / 100)
+    }
+    setForm(f => ({ ...f, rate: val, total_cost: newTotal }))
+  }
+
+  const handleTotalCostChange = (val) => {
+    const totalNum = parseFloat(val)
+    const qtyNum = parseFloat(form.qty)
+
+    let newRate = form.rate
+    if (!isNaN(totalNum) && !isNaN(qtyNum) && qtyNum > 0) {
+      newRate = String(Math.round((totalNum / qtyNum) * 10000) / 10000)
+    }
+    setForm(f => ({ ...f, total_cost: val, rate: newRate }))
+  }
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -54,11 +87,15 @@ export default function StockPurchase() {
     const purchaseData = {
       product_id: Number(form.product_id),
       qty,
-      cost_price: qty > 0 ? totalCost / qty : 0,
+      cost_price: form.rate ? Number(form.rate) : (qty > 0 ? totalCost / qty : 0),
       supplier: form.supplier || '',
       firm_name: form.firm_name || '',
       date: form.date,
       weight,
+      location: form.location || '',
+      bill_no: form.bill_no || '',
+      vehicle_number: form.vehicle_number || '',
+      driver_name: form.driver_name || '',
     }
 
     const result = stockPurchaseSchema.safeParse(purchaseData)
@@ -71,7 +108,7 @@ export default function StockPurchase() {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
     })
-    setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '' })
+    setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '', location: '', bill_no: '', vehicle_number: '', driver_name: '' })
     setSaving(false)
     setPage(1)
     load()
@@ -129,11 +166,35 @@ export default function StockPurchase() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <input
+            placeholder="Location"
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            placeholder="Bill No"
+            value={form.bill_no}
+            onChange={(e) => setForm({ ...form, bill_no: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            placeholder="Vehicle Number"
+            value={form.vehicle_number}
+            onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            placeholder="Driver Name"
+            value={form.driver_name}
+            onChange={(e) => setForm({ ...form, driver_name: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
             type="number"
             step="any"
             placeholder="Quantity"
             value={form.qty}
-            onChange={(e) => setForm({ ...form, qty: e.target.value })}
+            onChange={(e) => handleQtyChange(e.target.value)}
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
@@ -147,10 +208,19 @@ export default function StockPurchase() {
           />
           <input
             type="number"
+            step="any"
+            placeholder="Rate (₹)"
+            value={form.rate}
+            onChange={(e) => handleRateChange(e.target.value)}
+            required
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            type="number"
             step="0.01"
             placeholder="Total Cost (₹)"
             value={form.total_cost}
-            onChange={(e) => setForm({ ...form, total_cost: e.target.value })}
+            onChange={(e) => handleTotalCostChange(e.target.value)}
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
@@ -174,7 +244,12 @@ export default function StockPurchase() {
                 <th className="text-left px-5 py-3">Date</th>
                 {!singleProductMode && <th className="text-left px-5 py-3">Product</th>}
                 <th className="text-right px-5 py-3">Qty</th>
+                <th className="text-right px-5 py-3">Rate</th>
                 <th className="text-right px-5 py-3">Total Cost</th>
+                <th className="text-left px-5 py-3">Location</th>
+                <th className="text-left px-5 py-3">Bill No</th>
+                <th className="text-left px-5 py-3">Vehicle No</th>
+                <th className="text-left px-5 py-3">Driver</th>
                 <th className="text-left px-5 py-3">Firm Name</th>
                 <th className="text-left px-5 py-3">Supplier</th>
               </tr>
@@ -182,7 +257,7 @@ export default function StockPurchase() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={singleProductMode ? 5 : 6} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={singleProductMode ? 10 : 11} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -198,13 +273,18 @@ export default function StockPurchase() {
                           </div>
                         )}
                       </td>
+                      <td className="px-5 py-3 text-right text-gray-700 font-semibold">{formatCurrency(p.cost_price)}</td>
                       <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.qty * p.cost_price)}</td>
+                      <td className="px-5 py-3 text-gray-500 italic text-xs whitespace-nowrap">{p.location || '-'}</td>
+                      <td className="px-5 py-3 text-gray-500 font-semibold text-xs whitespace-nowrap">{p.bill_no || '-'}</td>
+                      <td className="px-5 py-3 text-gray-500 font-medium text-xs whitespace-nowrap">{p.vehicle_number || '-'}</td>
+                      <td className="px-5 py-3 text-gray-500 italic text-xs whitespace-nowrap">{p.driver_name || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.firm_name || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.supplier || '-'}</td>
                     </tr>
                   ))}
                   {purchases.length === 0 && (
-                    <tr><td colSpan={singleProductMode ? 5 : 6} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
+                    <tr><td colSpan={singleProductMode ? 10 : 11} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
                   )}
                 </>
               )}
