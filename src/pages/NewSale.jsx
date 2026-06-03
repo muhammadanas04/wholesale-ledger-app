@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, Download } from 'lucide-react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { saleSchema } from '../lib/schemas'
 import { toast } from 'sonner'
@@ -31,6 +31,15 @@ export default function NewSale() {
     const price = Number(item.total_price) || 0
     return s + price
   }, 0)
+
+  const itemsQtyTotal = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+  const itemsWeightTotal = items.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
+
+  const recentQtyTotal = recentSales.reduce((sum, s) => sum + (Number(s.qty) || 0), 0)
+  const recentWeightTotal = recentSales.reduce((sum, s) => sum + (Number(s.weight) || 0), 0)
+  const recentSubtotal = recentSales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0)
+  const recentDiscountTotal = recentSales.reduce((sum, s) => sum + (Number(s.discount) || 0), 0)
+  const recentFinalTotal = recentSubtotal - recentDiscountTotal
 
   async function loadRecentSales() {
     try {
@@ -230,6 +239,35 @@ export default function NewSale() {
     }
   }
 
+  const handleExportExcel = async () => {
+    try {
+      if (!recentSales || recentSales.length === 0) {
+        return toast.error('No sales to export')
+      }
+
+      const headers = ["Sale ID", "Date", "Customer Name", "Quantity", "Weight (kg)", "Original Value (₹)", "Discount (₹)", "Final Value (₹)", "Notes"]
+      const rows = recentSales.map((sale) => [
+        sale.id,
+        formatDate(sale.date),
+        sale.customer_name,
+        sale.qty > 0 ? sale.qty : 0,
+        sale.weight > 0 ? sale.weight : 0,
+        sale.total_amount / 100,
+        (sale.discount || 0) / 100,
+        (sale.total_amount - (sale.discount || 0)) / 100,
+        sale.notes || ''
+      ])
+
+      const success = await ipc('app:export-excel', 'Recent_Sales_History', headers, rows)
+      if (success) {
+        toast.success('Recent sales history exported successfully')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export recent sales')
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
@@ -402,6 +440,23 @@ export default function NewSale() {
                   )}
                 </div>
               ))}
+
+              {items.length > 1 && (
+                <div className="flex items-center gap-2 pt-2 text-sm font-bold text-gray-600">
+                  <div className="flex-1 text-right pr-2">Total:</div>
+                  <div className="w-24 px-3 text-gray-800">
+                    {itemsQtyTotal > 0 ? itemsQtyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
+                  </div>
+                  <div className="w-28 px-3"></div>
+                  <div className="w-24 px-3 text-gray-800">
+                    {itemsWeightTotal > 0 ? itemsWeightTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
+                  </div>
+                  <div className="w-32 px-3 font-black text-blue-600">
+                    ₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div className="w-8"></div>
+                </div>
+              )}
             </>
           )}
 
@@ -468,8 +523,15 @@ export default function NewSale() {
 
       {/* Recent Sales History Section */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 font-black text-gray-900 text-sm uppercase tracking-widest">
-          Recent Sales History
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <span className="font-black text-gray-900 text-sm uppercase tracking-widest">Recent Sales History</span>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Excel
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -548,6 +610,38 @@ export default function NewSale() {
                 </tr>
               )}
             </tbody>
+            {recentSales.length > 0 && (
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs font-bold text-gray-700">
+                <tr>
+                  <td className="px-6 py-4 text-gray-900 font-black uppercase tracking-wider" colSpan={2}>
+                    Total
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
+                    {recentQtyTotal > 0 ? recentQtyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
+                    {recentWeightTotal > 0 ? `${recentWeightTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg` : '-'}
+                  </td>
+                  {showRateField && (
+                    <td className="px-6 py-4 text-right text-gray-400 font-medium">-</td>
+                  )}
+                  <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
+                    {fmt(recentSubtotal)}
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold whitespace-nowrap">
+                    {recentDiscountTotal > 0 ? (
+                      <span className="text-emerald-600">-{fmt(recentDiscountTotal)}</span>
+                    ) : (
+                      <span className="text-gray-400 font-medium">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black text-slate-900 whitespace-nowrap">
+                    {fmt(recentFinalTotal)}
+                  </td>
+                  <td className="px-6 py-4" colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

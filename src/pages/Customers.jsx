@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { Search, Plus, Phone, MapPin } from 'lucide-react'
+import { Search, Plus, Phone, MapPin, Download } from 'lucide-react'
 import { customerSchema } from '../lib/schemas'
 import { formatCurrency, formatPhone } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -80,13 +80,50 @@ export default function Customers() {
     load()
   }
 
+  const handleExportExcel = async () => {
+    try {
+      const data = search 
+        ? await ipc('customers:search', search, { limit: 100000, offset: 0, sortBy, order })
+        : await ipc('customers:list', { limit: 100000, offset: 0, sortBy, order })
+
+      if (!data || data.length === 0) {
+        return toast.error('No customers to export')
+      }
+
+      const headers = ["ID", "Name", "Phone", "Address", "Outstanding Balance (₹)"]
+      const rows = data.map((c) => [
+        c.id,
+        c.name,
+        c.phone ? formatPhone(c.phone) : '-',
+        c.address || '-',
+        c.balance / 100
+      ])
+
+      const success = await ipc('app:export-excel', 'Customers_List', headers, rows)
+      if (success) {
+        toast.success('Customers list exported successfully')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export customers')
+    }
+  }
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Customers</h1>
-        <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-          <Plus className="w-4 h-4" /> Add Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-medium transition-all shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Export Excel
+          </button>
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Add Customer
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

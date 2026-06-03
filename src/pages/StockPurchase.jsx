@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, ShoppingBag } from 'lucide-react'
+import { Plus, ShoppingBag, Download } from 'lucide-react'
 import { stockPurchaseSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -113,6 +113,45 @@ export default function StockPurchase() {
     setPage(1)
     load()
     toast.success('Stock purchase recorded')
+  }
+
+  const handleExportExcel = async () => {
+    try {
+      const data = await ipc('stock-purchases:list', { limit: 100000 })
+      if (!data || data.length === 0) {
+        return toast.error('No purchases to export')
+      }
+
+      const headers = [
+        "Purchase ID", "Date", "Product", "Quantity", "Unit", "Weight (kg)", 
+        "Rate (₹)", "Total Cost (₹)", "Supplier", "Firm Name", "Bill No", 
+        "Vehicle No", "Driver Name", "Location"
+      ]
+      const rows = data.map((p) => [
+        p.id,
+        formatDate(p.date),
+        p.product_name,
+        p.qty,
+        p.unit,
+        p.weight > 0 ? p.weight : 0,
+        p.cost_price / 100,
+        (p.qty * p.cost_price) / 100,
+        p.supplier || '',
+        p.firm_name || '',
+        p.bill_no || '',
+        p.vehicle_number || '',
+        p.driver_name || '',
+        p.location || ''
+      ])
+
+      const success = await ipc('app:export-excel', 'Purchase_History', headers, rows)
+      if (success) {
+        toast.success('Purchase history exported successfully')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export purchase history')
+    }
   }
 
   return (
@@ -236,7 +275,16 @@ export default function StockPurchase() {
       </form>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="px-5 py-3 border-b border-gray-200 font-bold text-gray-700 text-sm">Purchase History</div>
+        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+          <span className="font-bold text-gray-700 text-sm">Purchase History</span>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Excel
+          </button>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">

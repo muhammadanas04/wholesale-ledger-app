@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 const db = require('./db')
 const sync = require('./sync')
+const XLSX = require('xlsx')
 
 // Helper to standardize IPC responses
 const wrap = (fn) => async (event, ...args) => {
@@ -132,6 +133,25 @@ function registerIpcHandlers() {
 
     if (filePath) {
       fs.writeFileSync(filePath, data)
+      return true
+    }
+    return false
+  }))
+
+  ipcMain.handle('app:export-excel', wrap(async (event, filename, headers, data) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: 'Export Excel',
+      defaultPath: path.join(process.env.HOME || process.env.USERPROFILE, `${filename}.xlsx`),
+      filters: [{ name: 'Excel Files', extensions: ['xlsx'] }],
+    })
+
+    if (filePath) {
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data])
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
+      const buf = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+      fs.writeFileSync(filePath, buf)
       return true
     }
     return false

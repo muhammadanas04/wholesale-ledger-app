@@ -248,6 +248,67 @@ export default function Ledger() {
     await ipc('app:print-to-pdf', `Ledger_${range}`)
   }
 
+  // Export to Excel
+  const handleExportExcel = async () => {
+    try {
+      const filters = {
+        customer_id: customerId ? Number(customerId) : null,
+        date_from: dateFrom || null,
+        date_to: dateTo || null,
+        type: type,
+        limit: 100000,
+        offset: 0
+      }
+
+      const data = await ipc('ledger:list', filters)
+      if (!data || data.length === 0) {
+        return toast.error('No entries to export')
+      }
+
+      const headers = ["Date", "Customer Name", "Type", "Reference", "Debit/Dr (₹)", "Credit/Cr (₹)", "Discount (₹)", "Final Value (₹)", "Notes"]
+      
+      const rows = data.map((entry) => {
+        const isSale = entry.type === 'sale'
+        let discountVal = 0
+        let finalVal = 0
+        if (isSale) {
+          if (roundingConfig && roundingConfig.enabled) {
+            const result = applyRounding(entry.amount, roundingConfig)
+            discountVal = result.discountInt / 100
+            finalVal = result.finalInt / 100
+          } else {
+            discountVal = -(entry.discount || 0) / 100
+            finalVal = (entry.amount - (entry.discount || 0)) / 100
+          }
+        } else {
+          discountVal = (entry.discount || 0) / 100
+          finalVal = (-entry.amount + entry.discount) / 100
+        }
+
+        return [
+          formatDate(entry.date),
+          entry.customer_name,
+          entry.type,
+          isSale ? `Sale #${entry.id}` : `Pay #${entry.id}`,
+          isSale ? entry.amount / 100 : 0,
+          !isSale ? -entry.amount / 100 : 0,
+          discountVal,
+          finalVal,
+          entry.notes || ''
+        ]
+      })
+
+      const filename = `Ledger_${dateFrom || 'start'}_to_${dateTo || 'end'}`
+      const success = await ipc('app:export-excel', filename, headers, rows)
+      if (success) {
+        toast.success('Ledger statement exported successfully')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export ledger')
+    }
+  }
+
   // Calculate visible page column totals
   let pageDebit = 0
   let pageCredit = 0
@@ -292,12 +353,20 @@ export default function Ledger() {
           <BookOpen className="w-6 h-6 text-gray-700" />
           <h1 className="text-2xl font-bold text-gray-800">Ledger</h1>
         </div>
-        <button
-          onClick={handleDownloadPDF}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
-        >
-          <Download className="w-4 h-4" /> Download PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-xl text-sm font-bold transition-all shadow-md"
+          >
+            <Download className="w-4 h-4" /> Export Excel
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-950 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

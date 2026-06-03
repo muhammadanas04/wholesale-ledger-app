@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, Wallet, Trash2 } from 'lucide-react'
+import { Plus, Wallet, Trash2, Download } from 'lucide-react'
 import { paymentSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -88,6 +88,34 @@ export default function Payments() {
     toast.success('Payment deleted')
   }
 
+  const handleExportExcel = async () => {
+    try {
+      const data = await ipc('payments:list', { limit: 100000 })
+      if (!data || data.length === 0) {
+        return toast.error('No payments to export')
+      }
+
+      const headers = ["Payment ID", "Date", "Customer Name", "Amount Paid (₹)", "Discount Given (₹)", "Final Payment (₹)", "Notes"]
+      const rows = data.map((p) => [
+        p.id,
+        formatDate(p.date),
+        p.customer_name,
+        p.amount / 100,
+        (p.discount || 0) / 100,
+        (p.amount - (p.discount || 0)) / 100,
+        p.notes || ''
+      ])
+
+      const success = await ipc('app:export-excel', 'Recent_Payments', headers, rows)
+      if (success) {
+        toast.success('Payments list exported successfully')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export payments')
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
@@ -154,7 +182,16 @@ export default function Payments() {
       </form>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="px-5 py-3 border-b border-gray-200 font-bold text-gray-700 text-sm">Recent Payments</div>
+        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+          <span className="font-bold text-gray-700 text-sm">Recent Payments</span>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Excel
+          </button>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
