@@ -12,6 +12,7 @@ export default function TopBar() {
   const [syncConfigured, setSyncConfigured] = useState(true)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
+  const [updateVersion, setUpdateVersion] = useState(null)
 
   useEffect(() => {
     const on = () => setIsOnline(true)
@@ -34,10 +35,14 @@ export default function TopBar() {
       }
     }
 
-    const updateAvailableHandler = () => setUpdateAvailable(true)
-    const updateDownloadedHandler = () => {
+    const updateAvailableHandler = (data) => {
+      setUpdateAvailable(true)
+      if (data?.version) setUpdateVersion(data.version)
+    }
+    const updateDownloadedHandler = (data) => {
       setUpdateAvailable(false)
       setUpdateDownloaded(true)
+      if (data?.version) setUpdateVersion(data.version)
     }
 
     if (window.electronAPI) {
@@ -87,7 +92,7 @@ export default function TopBar() {
         )}
         {updateAvailable && (
           <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold animate-pulse">
-            <ArrowUpCircle className="w-3 h-3" /> Update Available
+            <ArrowUpCircle className="w-3 h-3" /> {updateVersion ? `Update v${updateVersion} available` : 'Update Available'}
           </div>
         )}
         {updateDownloaded && (
@@ -95,7 +100,7 @@ export default function TopBar() {
             onClick={handleRestart}
             className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-xs font-bold hover:bg-green-700 transition-all shadow-sm"
           >
-            <ArrowUpCircle className="w-3 h-3" /> Restart to Update
+            <ArrowUpCircle className="w-3 h-3" /> {updateVersion ? `Restart to install v${updateVersion}` : 'Restart to Update'}
           </button>
         )}
       </div>

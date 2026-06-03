@@ -29,21 +29,71 @@ function createWindow() {
 
   // Auto-updater events (public GitHub repo — no token needed)
   try {
-    autoUpdater.on('update-available', () => {
-      mainWindow.webContents.send('app:update-available')
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+
+    autoUpdater.on('checking-for-update', () => {
+      mainWindow.webContents.send('app:update-checking')
     })
 
-    autoUpdater.on('update-downloaded', () => {
-      mainWindow.webContents.send('app:update-downloaded')
+    autoUpdater.on('update-available', (info) => {
+      mainWindow.webContents.send('app:update-available', {
+        version: info.version,
+        releaseDate: info.releaseDate,
+      })
     })
 
+    autoUpdater.on('update-not-available', (info) => {
+      mainWindow.webContents.send('app:update-not-available', {
+        version: info.version,
+      })
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow.webContents.send('app:download-progress', {
+        percent: Math.round(progress.percent),
+        transferred: progress.transferred,
+        total: progress.total,
+        bytesPerSecond: progress.bytesPerSecond,
+      })
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+      mainWindow.webContents.send('app:update-downloaded', {
+        version: info.version,
+      })
+    })
+
+    autoUpdater.on('error', (err) => {
+      mainWindow.webContents.send('app:update-error', {
+        message: err.message || 'Update check failed',
+      })
+    })
+
+    // Check for updates on startup only (no periodic checks)
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.checkForUpdates().catch((e) => {
+        console.log('Startup update check failed:', e.message)
+      })
     }
   } catch (e) {
     console.log('Auto-updater not configured:', e.message)
   }
 }
+
+// ── Update IPC Handlers ─────────────────────────────────────
+ipcMain.handle('app:get-version', () => {
+  return { success: true, data: app.getVersion() }
+})
+
+ipcMain.handle('app:check-for-updates', async () => {
+  try {
+    await autoUpdater.checkForUpdates()
+    return { success: true, data: true }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
 
 ipcMain.on('app:restart-and-install', () => {
   try {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Percent } from 'lucide-react'
+import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Percent, Download, RefreshCw, ArrowUpCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Settings() {
@@ -37,6 +37,13 @@ export default function Settings() {
   const [syncKey, setSyncKey] = useState('')
   const [syncSaving, setSyncSaving] = useState(false)
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
+
+  // Update state
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState('idle') // idle | checking | available | downloading | downloaded | up-to-date | error
+  const [updateVersion, setUpdateVersion] = useState(null)
+  const [downloadPercent, setDownloadPercent] = useState(0)
+  const [updateError, setUpdateError] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -96,6 +103,10 @@ export default function Settings() {
         setSyncUrl(syncConfig.syncUrl)
       }
 
+      // Load app version
+      const ver = await ipc('app:get-version')
+      if (ver) setAppVersion(ver)
+
       // Load single product details
       try {
         const prods = await ipc('products:list', { limit: 1 })
@@ -118,6 +129,35 @@ export default function Settings() {
       setLoading(false)
     }
     load()
+
+    // Listen for update events from main process
+    if (window.electronAPI) {
+      const unsubs = []
+      unsubs.push(window.electronAPI.on('app:update-checking', () => {
+        setUpdateStatus('checking')
+        setUpdateError(null)
+      }))
+      unsubs.push(window.electronAPI.on('app:update-available', (data) => {
+        setUpdateStatus('available')
+        if (data?.version) setUpdateVersion(data.version)
+      }))
+      unsubs.push(window.electronAPI.on('app:update-not-available', () => {
+        setUpdateStatus('up-to-date')
+      }))
+      unsubs.push(window.electronAPI.on('app:download-progress', (data) => {
+        setUpdateStatus('downloading')
+        if (data?.percent != null) setDownloadPercent(data.percent)
+      }))
+      unsubs.push(window.electronAPI.on('app:update-downloaded', (data) => {
+        setUpdateStatus('downloaded')
+        if (data?.version) setUpdateVersion(data.version)
+      }))
+      unsubs.push(window.electronAPI.on('app:update-error', (data) => {
+        setUpdateStatus('error')
+        setUpdateError(data?.message || 'Update check failed')
+      }))
+      return () => unsubs.forEach(fn => fn && fn())
+    }
   }, [])
 
   async function handleSave(e) {
@@ -630,6 +670,127 @@ export default function Settings() {
                   Your sync key is provided by your administrator. It connects this device to your shared cloud database.
                 </p>
               </form>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* App Updates */}
+      <div className="max-w-2xl">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-800">
+            <Download className="w-4 h-4 text-indigo-500" /> App Updates
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Current Version */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Current Version</p>
+                <p className="text-xs text-gray-400 font-semibold mt-0.5">
+                  {appVersion ? `v${appVersion}` : 'Unknown'}
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  setUpdateStatus('checking')
+                  setUpdateError(null)
+                  await ipc('app:check-for-updates')
+                }}
+                disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${updateStatus === 'checking' ? 'animate-spin' : ''}`} />
+                {updateStatus === 'checking' ? 'Checking...' : 'Check for Updates'}
+              </button>
+            </div>
+
+            {/* Status Display */}
+            {updateStatus === 'up-to-date' && (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-800">You're up to date!</p>
+                  <p className="text-xs text-green-600 mt-0.5">Wholesale Ledger v{appVersion} is the latest version.</p>
+                </div>
+              </div>
+            )}
+
+            {updateStatus === 'available' && (
+              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <ArrowUpCircle className="w-5 h-5 text-blue-600 shrink-0 animate-pulse" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">
+                    Update {updateVersion ? `v${updateVersion}` : ''} available
+                  </p>
+                  <p className="text-xs text-blue-600 mt-0.5">Downloading automatically...</p>
+                </div>
+              </div>
+            )}
+
+            {updateStatus === 'downloading' && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                    <Download className="w-4 h-4 animate-bounce" />
+                    Downloading update{updateVersion ? ` v${updateVersion}` : ''}...
+                  </p>
+                  <span className="text-xs font-bold text-blue-600">{downloadPercent}%</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${downloadPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {updateStatus === 'downloaded' && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-xl space-y-3">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">
+                      Update {updateVersion ? `v${updateVersion}` : ''} ready to install
+                    </p>
+                    <p className="text-xs text-green-600 mt-0.5">The app will restart to apply the update.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (window.electronAPI) {
+                      window.electronAPI.send('app:restart-and-install')
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-all"
+                >
+                  <ArrowUpCircle className="w-4 h-4" /> Restart & Install Update
+                </button>
+              </div>
+            )}
+
+            {updateStatus === 'error' && (
+              <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-700">Update check failed</p>
+                  <p className="text-xs text-red-500 mt-0.5">{updateError}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setUpdateStatus('checking')
+                    setUpdateError(null)
+                    await ipc('app:check-for-updates')
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {updateStatus === 'idle' && (
+              <p className="text-xs text-gray-400">Click "Check for Updates" to see if a newer version is available.</p>
             )}
           </div>
         </div>
