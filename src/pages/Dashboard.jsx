@@ -586,20 +586,46 @@ export default function Dashboard() {
                     </tr>
                   ) : stockMovements.map((m) => {
                     const netMovement = m.qty_bought - m.qty_sold
+                    const netWeight = (m.weight_bought || 0) - (m.weight_sold || 0)
                     return (
                       <tr key={m.id} className="hover:bg-gray-50/50">
                         <td className="px-5 py-3 font-semibold text-gray-800">{m.name}</td>
-                        <td className="px-5 py-3 text-right text-emerald-600 font-bold">+{m.qty_bought} {m.unit}</td>
-                        <td className="px-5 py-3 text-right text-rose-500 font-bold">-{m.qty_sold} {m.unit}</td>
-                        <td className={`px-5 py-3 text-right font-black flex items-center justify-end gap-1 ${
-                          netMovement > 0 ? 'text-emerald-700' : netMovement < 0 ? 'text-rose-700' : 'text-gray-500'
-                        }`}>
-                          {netMovement > 0 ? (
-                            <TrendingUp className="w-3.5 h-3.5 flex-shrink-0" />
-                          ) : netMovement < 0 ? (
-                            <TrendingDown className="w-3.5 h-3.5 flex-shrink-0" />
-                          ) : null}
-                          {netMovement} {m.unit}
+                        <td className="px-5 py-3 text-right text-emerald-600 font-bold">
+                          <div>+{m.qty_bought} {m.unit}</div>
+                          {m.weight_bought > 0 && (
+                            <div className="text-[10px] text-emerald-500 font-bold lowercase tracking-normal">
+                              +{m.weight_bought.toFixed(2)} kg
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-right text-rose-500 font-bold">
+                          <div>-{m.qty_sold} {m.unit}</div>
+                          {m.weight_sold > 0 && (
+                            <div className="text-[10px] text-rose-400 font-bold lowercase tracking-normal">
+                              -{m.weight_sold.toFixed(2)} kg
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className={`font-black flex flex-col items-end gap-0.5 ${
+                            netMovement > 0 ? 'text-emerald-700' : netMovement < 0 ? 'text-rose-700' : 'text-gray-500'
+                          }`}>
+                            <div className="flex items-center gap-1 justify-end">
+                              {netMovement > 0 ? (
+                                <TrendingUp className="w-3.5 h-3.5 flex-shrink-0" />
+                              ) : netMovement < 0 ? (
+                                <TrendingDown className="w-3.5 h-3.5 flex-shrink-0" />
+                              ) : null}
+                              {netMovement} {m.unit}
+                            </div>
+                            {netWeight !== 0 && (
+                              <div className={`text-[10px] font-bold lowercase tracking-normal ${
+                                netWeight > 0 ? 'text-emerald-600' : 'text-rose-600'
+                              }`}>
+                                {netWeight > 0 ? '+' : ''}{netWeight.toFixed(2)} kg
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

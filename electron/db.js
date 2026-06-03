@@ -292,6 +292,16 @@ function updateProduct(id, { name, unit, reorder_level }) {
   return getProduct(id)
 }
 
+function adjustProductStock(id, newStock) {
+  db.prepare(`
+    UPDATE products
+    SET current_stock = ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `).run(Number(newStock), id)
+  return getProduct(id)
+}
+
+
 function getLowStockProducts() {
   return db.prepare(`
     SELECT * FROM products WHERE current_stock < reorder_level ORDER BY name ASC
@@ -355,6 +365,26 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight,
 
   const id = transaction()
   return getStockPurchase(id)
+}
+
+function deleteStockPurchase(id) {
+  const purchase = db.prepare('SELECT product_id, qty FROM stock_purchases WHERE id = ?').get(id)
+  if (!purchase) return false
+
+  const updateStock = db.prepare(`
+    UPDATE products
+    SET current_stock = current_stock - ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+
+  const transaction = db.transaction(() => {
+    updateStock.run(purchase.qty, purchase.product_id)
+    db.prepare('DELETE FROM stock_purchases WHERE id = ?').run(id)
+    db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('stock_purchases', id)
+  })
+
+  transaction()
+  return true
 }
 
 // ── Sales ──────────────────────────────────────────────────────────
@@ -619,7 +649,9 @@ function getTopCustomers(startDate, endDate) {
 
 function getStockMovements(startDate, endDate) {
   const bought = db.prepare(`
-    SELECT p.id, p.name, p.unit, COALESCE(SUM(sp.qty), 0) AS qty_bought,
+    SELECT p.id, p.name, p.unit, 
+           COALESCE(SUM(sp.qty), 0) AS qty_bought,
+           COALESCE(SUM(sp.weight), 0) AS weight_bought,
            COALESCE(SUM(sp.qty * sp.cost_price), 0) AS cost_total
     FROM products p
     LEFT JOIN stock_purchases sp ON sp.product_id = p.id AND sp.date >= ? AND sp.date <= ?
@@ -627,7 +659,9 @@ function getStockMovements(startDate, endDate) {
   `).all(startDate, endDate)
 
   const sold = db.prepare(`
-    SELECT si.product_id, COALESCE(SUM(si.qty), 0) AS qty_sold
+    SELECT si.product_id, 
+           COALESCE(SUM(si.qty), 0) AS qty_sold,
+           COALESCE(SUM(si.weight), 0) AS weight_sold
     FROM sale_items si
     JOIN sales s ON s.id = si.sale_id
     WHERE s.date >= ? AND s.date <= ?
@@ -635,12 +669,21 @@ function getStockMovements(startDate, endDate) {
   `).all(startDate, endDate)
 
   const soldMap = {}
-  for (const row of sold) soldMap[row.product_id] = row.qty_sold
+  for (const row of sold) {
+    soldMap[row.product_id] = {
+      qty_sold: row.qty_sold,
+      weight_sold: row.weight_sold
+    }
+  }
 
-  return bought.map((p) => ({
-    ...p,
-    qty_sold: soldMap[p.id] || 0,
-  }))
+  return bought.map((p) => {
+    const s = soldMap[p.id] || { qty_sold: 0, weight_sold: 0 }
+    return {
+      ...p,
+      qty_sold: s.qty_sold,
+      weight_sold: s.weight_sold,
+    }
+  })
 }
 function getInventoryValue() {
   const row = db.prepare(`
@@ -842,11 +885,13 @@ module.exports = {
   getProductsCount,
   addProduct,
   updateProduct,
+  adjustProductStock,
   getLowStockProducts,
   getStockPurchases,
   getStockPurchase,
   getStockPurchasesCount,
   addStockPurchase,
+  deleteStockPurchase,
   getSales,
   getSale,
   getSalesCount,

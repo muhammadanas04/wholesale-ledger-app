@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, ShoppingBag, Download } from 'lucide-react'
+import { Plus, ShoppingBag, Download, Trash2 } from 'lucide-react'
 import { stockPurchaseSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
 import Pagination from '../components/Pagination'
 import Skeleton from '../components/Skeleton'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const LIMIT = 10
 
@@ -51,6 +52,12 @@ export default function StockPurchase() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [singleProductMode, setSingleProductMode] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleteId, setDeleteId] = useState(null)
+
+  const [adjProductId, setAdjProductId] = useState('')
+  const [adjStock, setAdjStock] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -70,6 +77,11 @@ export default function StockPurchase() {
 
     if (isSingleProduct && productsList.length > 0) {
       setForm(f => ({ ...f, product_id: String(productsList[0].id) }))
+      setAdjProductId(String(productsList[0].id))
+      setAdjStock(String(productsList[0].current_stock))
+    } else {
+      setAdjProductId('')
+      setAdjStock('')
     }
 
     setLoading(false)
@@ -154,6 +166,46 @@ export default function StockPurchase() {
     }
   }
 
+  async function confirmDelete(id) {
+    setDeleteId(id)
+    setConfirmOpen(true)
+  }
+
+  async function handleDelete() {
+    try {
+      await ipc('stock-purchases:delete', deleteId)
+      setConfirmOpen(false)
+      setPage(1)
+      load()
+      toast.success('Stock purchase deleted and stock level reverted')
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to delete stock purchase')
+    }
+  }
+
+  const handleAdjustStock = async (e) => {
+    e.preventDefault()
+    if (!adjProductId) {
+      return toast.error('Please select a product')
+    }
+    if (adjStock === '') {
+      return toast.error('Please enter a stock value')
+    }
+
+    setAdjusting(true)
+    try {
+      await ipc('products:adjust-stock', Number(adjProductId), Number(adjStock))
+      toast.success('Stock adjusted successfully')
+      load()
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to adjust stock')
+    } finally {
+      setAdjusting(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
@@ -161,118 +213,172 @@ export default function StockPurchase() {
         <h1 className="text-2xl font-bold text-gray-800">Stock Purchase</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {singleProductMode ? (
-            <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600 font-medium flex items-center">
-              {products[0] ? `${products[0].name} (${products[0].current_stock} ${products[0].unit} in stock)` : 'Product'}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm flex flex-col justify-between">
+          <div>
+            <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3">Record Stock Purchase</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {singleProductMode ? (
+                <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-650 font-semibold flex items-center">
+                  {products[0] ? `${products[0].name} (${products[0].current_stock} ${products[0].unit} in stock)` : 'Product'}
+                </div>
+              ) : (
+                <select
+                  value={form.product_id}
+                  onChange={(e) => setForm({ ...form, product_id: e.target.value })}
+                  required
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select product</option>
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.current_stock} {p.unit} in stock)</option>)}
+                </select>
+              )}
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                onClick={(e) => {
+                  try {
+                    e.target.showPicker()
+                  } catch (err) {
+                    console.error(err)
+                  }
+                }}
+                required
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Firm Name"
+                value={form.firm_name}
+                onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Supplier"
+                value={form.supplier}
+                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Location"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Bill No"
+                value={form.bill_no}
+                onChange={(e) => setForm({ ...form, bill_no: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Vehicle Number"
+                value={form.vehicle_number}
+                onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                placeholder="Driver Name"
+                value={form.driver_name}
+                onChange={(e) => setForm({ ...form, driver_name: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Quantity"
+                value={form.qty}
+                onChange={(e) => handleQtyChange(e.target.value)}
+                required
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Weight (optional)"
+                value={form.weight}
+                onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Rate (₹)"
+                value={form.rate}
+                onChange={(e) => handleRateChange(e.target.value)}
+                required
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Total Cost (₹)"
+                value={form.total_cost}
+                onChange={(e) => handleTotalCostChange(e.target.value)}
+                required
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-          ) : (
-            <select
-              value={form.product_id}
-              onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-              required
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-            >
-              <option value="">Select product</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.current_stock} {p.unit} in stock)</option>)}
-            </select>
-          )}
-          <input
-            type="date"
-            value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            onClick={(e) => {
-              try {
-                e.target.showPicker()
-              } catch (err) {
-                console.error(err)
-              }
-            }}
-            required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
-          />
-          <input
-            placeholder="Firm Name"
-            value={form.firm_name}
-            onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Supplier"
-            value={form.supplier}
-            onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Location"
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Bill No"
-            value={form.bill_no}
-            onChange={(e) => setForm({ ...form, bill_no: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Vehicle Number"
-            value={form.vehicle_number}
-            onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            placeholder="Driver Name"
-            value={form.driver_name}
-            onChange={(e) => setForm({ ...form, driver_name: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            type="number"
-            step="any"
-            placeholder="Quantity"
-            value={form.qty}
-            onChange={(e) => handleQtyChange(e.target.value)}
-            required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            type="number"
-            step="any"
-            placeholder="Weight (optional)"
-            value={form.weight}
-            onChange={(e) => setForm({ ...form, weight: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            type="number"
-            step="any"
-            placeholder="Rate (₹)"
-            value={form.rate}
-            onChange={(e) => handleRateChange(e.target.value)}
-            required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Total Cost (₹)"
-            value={form.total_cost}
-            onChange={(e) => handleTotalCostChange(e.target.value)}
-            required
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-all mt-4 self-start"
+          >
+            <Plus className="w-4 h-4" /> {saving ? 'Recording...' : 'Record Purchase'}
+          </button>
+        </form>
 
-        </div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-all"
-        >
-          <Plus className="w-4 h-4" /> {saving ? 'Recording...' : 'Record Purchase'}
-        </button>
-      </form>
+        <form onSubmit={handleAdjustStock} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-2">Adjust Current Stock</h2>
+            <p className="text-xs text-gray-400 mb-4">Directly overwrite the physical inventory level for a product.</p>
+            <div className="space-y-4">
+              {singleProductMode ? (
+                <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-650 font-bold h-[38px] flex items-center">
+                  {products[0] ? `${products[0].name}` : 'Product'}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Product</label>
+                  <select
+                    value={adjProductId}
+                    onChange={(e) => {
+                      setAdjProductId(e.target.value)
+                      const p = products.find(prod => String(prod.id) === e.target.value)
+                      setAdjStock(p ? String(p.current_stock) : '')
+                    }}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                  >
+                    <option value="">Select product</option>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.current_stock} {p.unit} in stock)</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">New Stock Value</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  value={adjStock}
+                  onChange={(e) => setAdjStock(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={adjusting}
+            className="w-full py-2.5 bg-gray-800 hover:bg-gray-950 text-white rounded-lg text-sm font-bold uppercase tracking-wider shadow-sm transition-all mt-6"
+          >
+            {adjusting ? 'Updating...' : 'Update Stock'}
+          </button>
+        </form>
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -300,12 +406,13 @@ export default function StockPurchase() {
                 <th className="text-left px-5 py-3">Driver</th>
                 <th className="text-left px-5 py-3">Firm Name</th>
                 <th className="text-left px-5 py-3">Supplier</th>
+                <th className="text-center px-5 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={singleProductMode ? 10 : 11} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={singleProductMode ? 11 : 12} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -329,10 +436,19 @@ export default function StockPurchase() {
                       <td className="px-5 py-3 text-gray-500 italic text-xs whitespace-nowrap">{p.driver_name || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.firm_name || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs">{p.supplier || '-'}</td>
+                      <td className="px-5 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => confirmDelete(p.id)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {purchases.length === 0 && (
-                    <tr><td colSpan={singleProductMode ? 10 : 11} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
+                    <tr><td colSpan={singleProductMode ? 11 : 12} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
                   )}
                 </>
               )}
@@ -341,6 +457,15 @@ export default function StockPurchase() {
         </div>
         <Pagination current={page} total={total} onPageChange={setPage} />
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Delete Stock Purchase?"
+        message="This will delete the stock purchase record and deduct the purchase quantity from the product inventory. Are you sure?"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+        confirmText="Delete Purchase"
+      />
     </div>
   )
 }

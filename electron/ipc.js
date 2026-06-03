@@ -31,6 +31,7 @@ function registerIpcHandlers() {
   ipcMain.handle('products:get', wrap((_e, id) => db.getProduct(id)))
   ipcMain.handle('products:add', wrap((_e, data) => db.addProduct(data)))
   ipcMain.handle('products:update', wrap((_e, id, data) => db.updateProduct(id, data)))
+  ipcMain.handle('products:adjust-stock', wrap((_e, id, newStock) => db.adjustProductStock(id, newStock)))
   ipcMain.handle('products:low-stock', wrap(() => db.getLowStockProducts()))
 
   // ── Stock Purchases ────────────────────────────────────────────
@@ -38,6 +39,7 @@ function registerIpcHandlers() {
   ipcMain.handle('stock-purchases:count', wrap(() => db.getStockPurchasesCount()))
   ipcMain.handle('stock-purchases:get', wrap((_e, id) => db.getStockPurchase(id)))
   ipcMain.handle('stock-purchases:add', wrap((_e, data) => db.addStockPurchase(data)))
+  ipcMain.handle('stock-purchases:delete', wrap((_e, id) => db.deleteStockPurchase(id)))
 
   // ── Sales ──────────────────────────────────────────────────────
   ipcMain.handle('sales:list', wrap((_e, args) => db.getSales(args)))
