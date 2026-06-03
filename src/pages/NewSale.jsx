@@ -90,7 +90,9 @@ export default function NewSale() {
               product_id: String(item.product_id),
               qty: String(item.qty),
               rate: String(item.unit_price / 100),
-              total_price: ((item.qty * item.unit_price) / 100).toFixed(2),
+              total_price: item.total_price !== null && item.total_price !== undefined
+                ? (item.total_price / 100).toFixed(2)
+                : ((item.qty * item.unit_price) / 100).toFixed(2),
               weight: item.weight ? String(item.weight) : ''
             })))
           } else {
@@ -153,22 +155,12 @@ export default function NewSale() {
     const next = [...items]
     const item = { ...next[i], [field]: value }
 
-    if (field === 'qty' || field === 'rate') {
-      const q = Number(field === 'qty' ? value : item.qty) || 0
-      const r = Number(field === 'rate' ? value : item.rate) || 0
-      if (q > 0 && r > 0) {
-        item.total_price = (q * r).toFixed(2)
-      } else {
-        item.total_price = ''
-      }
-    } else if (field === 'total_price') {
-      const q = Number(item.qty) || 0
-      const tp = Number(value) || 0
-      if (q > 0 && tp > 0) {
-        item.rate = (tp / q).toFixed(2)
-      } else {
-        item.rate = ''
-      }
+    const q = parseFloat(item.qty) || 0
+    const tp = parseFloat(item.total_price) || 0
+    const r = parseFloat(item.rate) || 0
+
+    if (q > 0 && tp > 0 && (!item.rate || r === 0)) {
+      item.rate = String(Math.round((tp / q) * 10000) / 10000)
     }
 
     next[i] = item
@@ -194,6 +186,7 @@ export default function NewSale() {
           product_id: Number(i.product_id),
           qty,
           unit_price: rate > 0 ? rate : (qty > 0 ? totalPrice / qty : 0),
+          total_price: totalPrice,
           weight,
         }
       }),
@@ -211,7 +204,8 @@ export default function NewSale() {
       discount: Math.round((saleData.discount || 0) * 100),
       items: saleData.items.map(i => ({
         ...i,
-        unit_price: Math.round(i.unit_price * 100)
+        unit_price: Math.round(i.unit_price * 100),
+        total_price: Math.round(i.total_price * 100)
       }))
     }
 
@@ -267,6 +261,15 @@ export default function NewSale() {
       toast.error('Failed to export recent sales')
     }
   }
+
+  const isSingleRateIncorrect = (() => {
+    const item = items[0]
+    if (!item) return false
+    const q = parseFloat(item.qty) || 0
+    const tp = parseFloat(item.total_price) || 0
+    const r = parseFloat(item.rate) || 0
+    return q > 0 && tp > 0 && r > 0 && Math.abs(q * r - tp) >= 0.01
+  })()
 
   return (
     <div className="p-6 space-y-6">
@@ -349,7 +352,11 @@ export default function NewSale() {
                       value={items[0]?.rate || ''}
                       onChange={(e) => updateItem(0, 'rate', e.target.value)}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
+                      className={`w-full px-3 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 h-[38px] ${
+                        isSingleRateIncorrect
+                          ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
                     />
                   </div>
                 )}
@@ -387,59 +394,70 @@ export default function NewSale() {
                 </button>
               </div>
 
-              {items.map((item, i) => (
-                <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
-                  <select
-                    value={item.product_id}
-                    onChange={(e) => updateItem(i, 'product_id', e.target.value)}
-                    required
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                  >
-                    <option value="">Product</option>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
-                  </select>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Qty"
-                    value={item.qty}
-                    onChange={(e) => updateItem(i, 'qty', e.target.value)}
-                    required
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Rate (₹)"
-                    value={item.rate}
-                    onChange={(e) => updateItem(i, 'rate', e.target.value)}
-                    required
-                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Weight"
-                    value={item.weight}
-                    onChange={(e) => updateItem(i, 'weight', e.target.value)}
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Total Price (₹)"
-                    value={item.total_price}
-                    onChange={(e) => updateItem(i, 'total_price', e.target.value)}
-                    required
-                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  {items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {items.map((item, i) => {
+                const q = parseFloat(item.qty) || 0
+                const tp = parseFloat(item.total_price) || 0
+                const r = parseFloat(item.rate) || 0
+                const isRateIncorrect = q > 0 && tp > 0 && r > 0 && Math.abs(q * r - tp) >= 0.01
+
+                return (
+                  <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
+                    <select
+                      value={item.product_id}
+                      onChange={(e) => updateItem(i, 'product_id', e.target.value)}
+                      required
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="">Product</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                    </select>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Qty"
+                      value={item.qty}
+                      onChange={(e) => updateItem(i, 'qty', e.target.value)}
+                      required
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Rate (₹)"
+                      value={item.rate}
+                      onChange={(e) => updateItem(i, 'rate', e.target.value)}
+                      required
+                      className={`w-28 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                        isRateIncorrect
+                          ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Weight"
+                      value={item.weight}
+                      onChange={(e) => updateItem(i, 'weight', e.target.value)}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Total Price (₹)"
+                      value={item.total_price}
+                      onChange={(e) => updateItem(i, 'total_price', e.target.value)}
+                      required
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    {items.length > 1 && (
+                      <button type="button" onClick={() => removeItem(i)} className="p-2 text-red-400 hover:text-red-600">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
 
               {items.length > 1 && (
                 <div className="flex items-center gap-2 pt-2 text-sm font-bold text-gray-600">

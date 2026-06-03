@@ -16,6 +16,7 @@ export const saleItemSchema = z.object({
   product_id: z.number().positive(),
   qty: z.number().positive('Quantity must be greater than 0'),
   unit_price: z.number().positive('Price must be greater than 0'),
+  total_price: z.number().positive('Total price must be greater than 0'),
   weight: z.number().positive('Weight must be greater than 0').optional().nullable(),
 })
 
@@ -39,6 +40,7 @@ export const stockPurchaseSchema = z.object({
   product_id: z.number().positive('Please select a product'),
   qty: z.number().positive('Quantity must be greater than 0'),
   cost_price: z.number().positive('Cost price must be greater than 0'),
+  total_cost: z.number().positive('Total cost must be greater than 0'),
   supplier: z.string().optional().or(z.literal('')),
   firm_name: z.string().optional().or(z.literal('')),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),

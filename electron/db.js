@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 7
+const SCHEMA_VERSION = 8
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -176,6 +176,21 @@ function migrate() {
     } catch (e) {}
   }
 
+  if (version < 8) {
+    try {
+      db.exec("ALTER TABLE sale_items ADD COLUMN total_price INTEGER;")
+    } catch (e) {}
+    try {
+      db.exec("ALTER TABLE stock_purchases ADD COLUMN total_cost INTEGER;")
+    } catch (e) {}
+    try {
+      db.exec("UPDATE sale_items SET total_price = CAST(ROUND(qty * unit_price) AS INTEGER) WHERE total_price IS NULL;")
+    } catch (e) {}
+    try {
+      db.exec("UPDATE stock_purchases SET total_cost = CAST(ROUND(qty * cost_price) AS INTEGER) WHERE total_cost IS NULL;")
+    } catch (e) {}
+  }
+
   if (version < SCHEMA_VERSION) {
     db.prepare("UPDATE _meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION))
   }
@@ -333,10 +348,10 @@ function getStockPurchase(id) {
   `).get(id)
 }
 
-function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name }) {
+function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name, total_cost }) {
   const insertPurchase = db.prepare(`
-    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO stock_purchases (product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name, total_cost)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const updateStock = db.prepare(`
@@ -357,7 +372,8 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight,
       location || null,
       bill_no || null,
       vehicle_number || null,
-      driver_name || null
+      driver_name || null,
+      total_cost !== undefined ? total_cost : Math.round(qty * cost_price)
     )
     updateStock.run(qty, product_id)
     return result.lastInsertRowid
@@ -434,8 +450,8 @@ function addSale({ customer_id, date, notes, items, discount = 0, total_amount }
   `)
 
   const insertItem = db.prepare(`
-    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight, total_price)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
 
   const deductStock = db.prepare(`
@@ -445,13 +461,14 @@ function addSale({ customer_id, date, notes, items, discount = 0, total_amount }
   `)
 
   const transaction = db.transaction(() => {
-    const calculatedTotal = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
+    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : item.qty * item.unit_price), 0)
     const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
     const result = insertSale.run(customer_id, date, finalTotal, discount || 0, notes || null)
     const saleId = result.lastInsertRowid
 
     for (const item of items) {
-      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null)
+      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.qty * item.unit_price)
+      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null, itemTotal)
       deductStock.run(item.qty, item.product_id)
     }
 
@@ -503,8 +520,8 @@ function updateSale(saleId, { customer_id, date, notes, items, discount = 0, tot
   `)
 
   const insertItem = db.prepare(`
-    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO sale_items (sale_id, product_id, qty, unit_price, weight, total_price)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
 
   const deleteItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?')
@@ -531,13 +548,14 @@ function updateSale(saleId, { customer_id, date, notes, items, discount = 0, tot
     deleteItems.run(saleId)
 
     // 3. Update the main sales record
-    const calculatedTotal = items.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
+    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : item.qty * item.unit_price), 0)
     const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
     updateSaleStmt.run(customer_id, date, finalTotal, discount || 0, notes || null, saleId)
 
     // 4. Insert new items and deduct stock
     for (const item of items) {
-      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null)
+      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.qty * item.unit_price)
+      insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null, itemTotal)
       deductStock.run(item.qty, item.product_id)
     }
 

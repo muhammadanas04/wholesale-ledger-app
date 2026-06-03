@@ -16,33 +16,28 @@ export default function StockPurchase() {
   const [purchases, setPurchases] = useState([])
 
   const handleQtyChange = (val) => {
-    const qtyNum = parseFloat(val)
-    const rateNum = parseFloat(form.rate)
-    
-    let newTotal = form.total_cost
-    if (!isNaN(qtyNum) && !isNaN(rateNum)) {
-      newTotal = String(Math.round(qtyNum * rateNum * 100) / 100)
+    const qtyNum = parseFloat(val) || 0
+    const totalNum = parseFloat(form.total_cost) || 0
+    const rateNum = parseFloat(form.rate) || 0
+
+    let newRate = form.rate
+    if (qtyNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
+      newRate = String(Math.round((totalNum / qtyNum) * 10000) / 10000)
     }
-    setForm(f => ({ ...f, qty: val, total_cost: newTotal }))
+    setForm(f => ({ ...f, qty: val, rate: newRate }))
   }
 
   const handleRateChange = (val) => {
-    const rateNum = parseFloat(val)
-    const qtyNum = parseFloat(form.qty)
-
-    let newTotal = form.total_cost
-    if (!isNaN(rateNum) && !isNaN(qtyNum)) {
-      newTotal = String(Math.round(qtyNum * rateNum * 100) / 100)
-    }
-    setForm(f => ({ ...f, rate: val, total_cost: newTotal }))
+    setForm(f => ({ ...f, rate: val }))
   }
 
   const handleTotalCostChange = (val) => {
-    const totalNum = parseFloat(val)
-    const qtyNum = parseFloat(form.qty)
+    const totalNum = parseFloat(val) || 0
+    const qtyNum = parseFloat(form.qty) || 0
+    const rateNum = parseFloat(form.rate) || 0
 
     let newRate = form.rate
-    if (!isNaN(totalNum) && !isNaN(qtyNum) && qtyNum > 0) {
+    if (qtyNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
       newRate = String(Math.round((totalNum / qtyNum) * 10000) / 10000)
     }
     setForm(f => ({ ...f, total_cost: val, rate: newRate }))
@@ -100,6 +95,7 @@ export default function StockPurchase() {
       product_id: Number(form.product_id),
       qty,
       cost_price: form.rate ? Number(form.rate) : (qty > 0 ? totalCost / qty : 0),
+      total_cost: totalCost,
       supplier: form.supplier || '',
       firm_name: form.firm_name || '',
       date: form.date,
@@ -119,6 +115,7 @@ export default function StockPurchase() {
     await ipc('stock-purchases:add', {
       ...purchaseData,
       cost_price: Math.round(purchaseData.cost_price * 100),
+      total_cost: Math.round(purchaseData.total_cost * 100),
     })
     setForm({ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '', location: '', bill_no: '', vehicle_number: '', driver_name: '' })
     setSaving(false)
@@ -147,7 +144,7 @@ export default function StockPurchase() {
         p.unit,
         p.weight > 0 ? p.weight : 0,
         p.cost_price / 100,
-        (p.qty * p.cost_price) / 100,
+        p.total_cost !== null && p.total_cost !== undefined ? p.total_cost / 100 : (p.qty * p.cost_price) / 100,
         p.supplier || '',
         p.firm_name || '',
         p.bill_no || '',
@@ -205,6 +202,13 @@ export default function StockPurchase() {
       setAdjusting(false)
     }
   }
+
+  const isRateIncorrect = (() => {
+    const q = parseFloat(form.qty) || 0
+    const tc = parseFloat(form.total_cost) || 0
+    const r = parseFloat(form.rate) || 0
+    return q > 0 && tc > 0 && r > 0 && Math.abs(q * r - tc) >= 0.01
+  })()
 
   return (
     <div className="p-6 space-y-6">
@@ -307,7 +311,11 @@ export default function StockPurchase() {
                 value={form.rate}
                 onChange={(e) => handleRateChange(e.target.value)}
                 required
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                  isRateIncorrect
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
               />
               <input
                 type="number"
@@ -429,7 +437,9 @@ export default function StockPurchase() {
                         )}
                       </td>
                       <td className="px-5 py-3 text-right text-gray-700 font-semibold">{formatCurrency(p.cost_price)}</td>
-                      <td className="px-5 py-3 text-right text-orange-600 font-bold">{formatCurrency(p.qty * p.cost_price)}</td>
+                      <td className="px-5 py-3 text-right text-orange-600 font-bold">
+                        {p.total_cost !== null && p.total_cost !== undefined ? formatCurrency(p.total_cost) : formatCurrency(p.qty * p.cost_price)}
+                      </td>
                       <td className="px-5 py-3 text-gray-500 italic text-xs whitespace-nowrap">{p.location || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 font-semibold text-xs whitespace-nowrap">{p.bill_no || '-'}</td>
                       <td className="px-5 py-3 text-gray-500 font-medium text-xs whitespace-nowrap">{p.vehicle_number || '-'}</td>

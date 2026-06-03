@@ -50,12 +50,55 @@ function StatCard({ icon: Icon, label, value, color, loading, children }) {
 
 
 
+// Calculate dynamic monthly dates on mount or preset switch
+const getPresetDates = (preset) => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+
+  if (preset === 'today') {
+    const today = now.toISOString().slice(0, 10)
+    return { start: today, end: today }
+  } else if (preset === 'monthly') {
+    const startStr = `${y}-${String(m + 1).padStart(2, '0')}-01`
+    const end = new Date(y, m + 1, 0)
+    const endStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+    return { start: startStr, end: endStr }
+  } else if (preset === 'yearly') {
+    const end = new Date()
+    const start = new Date()
+    start.setFullYear(end.getFullYear() - 1)
+    return {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10)
+    }
+  }
+  return { start: '', end: '' }
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
-  const [activePreset, setActivePreset] = useState('monthly')
-  const [dates, setDates] = useState({ start: '', end: '' })
+  const [activePreset, setActivePreset] = useState(() => {
+    return localStorage.getItem('dashboard_active_preset') || 'monthly'
+  })
+  const [dates, setDates] = useState(() => {
+    const savedPreset = localStorage.getItem('dashboard_active_preset') || 'monthly'
+    if (savedPreset === 'custom') {
+      const savedDates = localStorage.getItem('dashboard_dates')
+      if (savedDates) {
+        try {
+          return JSON.parse(savedDates)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+    return getPresetDates(savedPreset)
+  })
   const [shopName, setShopName] = useState('Wholesale Ledger')
-  const [activeTab, setActiveTab] = useState('products') // products, customers, movements
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('dashboard_active_tab') || 'products'
+  })
 
   const [singleProductMode, setSingleProductMode] = useState(false)
   const [singleProduct, setSingleProduct] = useState(null)
@@ -65,37 +108,17 @@ export default function Dashboard() {
   const [topCustomers, setTopCustomers] = useState([])
   const [stockMovements, setStockMovements] = useState([])
 
-  // Calculate dynamic monthly dates on mount or preset switch
-  const getPresetDates = (preset) => {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = now.getMonth()
-
-    if (preset === 'today') {
-      const today = now.toISOString().slice(0, 10)
-      return { start: today, end: today }
-    } else if (preset === 'monthly') {
-      const startStr = `${y}-${String(m + 1).padStart(2, '0')}-01`
-      const end = new Date(y, m + 1, 0)
-      const endStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
-      return { start: startStr, end: endStr }
-    } else if (preset === 'yearly') {
-      const end = new Date()
-      const start = new Date()
-      start.setFullYear(end.getFullYear() - 1)
-      return {
-        start: start.toISOString().slice(0, 10),
-        end: end.toISOString().slice(0, 10)
-      }
-    }
-    return { start: '', end: '' }
-  }
-
-  // Set default preset on mount
   useEffect(() => {
-    const initialDates = getPresetDates('monthly')
-    setDates(initialDates)
-  }, [])
+    localStorage.setItem('dashboard_active_preset', activePreset)
+  }, [activePreset])
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_dates', JSON.stringify(dates))
+  }, [dates])
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_active_tab', activeTab)
+  }, [activeTab])
 
   // Load all statistics & reports
   useEffect(() => {

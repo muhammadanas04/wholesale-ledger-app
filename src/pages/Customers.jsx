@@ -15,9 +15,27 @@ export default function Customers() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('name')
-  const [order, setOrder] = useState('ASC')
+  const [search, setSearch] = useState(() => {
+    return localStorage.getItem('customers_search') || ''
+  })
+  const [sortBy, setSortBy] = useState(() => {
+    return localStorage.getItem('customers_sort_by') || 'name'
+  })
+  const [order, setOrder] = useState(() => {
+    return localStorage.getItem('customers_order') || 'ASC'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('customers_search', search)
+  }, [search])
+
+  useEffect(() => {
+    localStorage.setItem('customers_sort_by', sortBy)
+  }, [sortBy])
+
+  useEffect(() => {
+    localStorage.setItem('customers_order', order)
+  }, [order])
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', address: '' })

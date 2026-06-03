@@ -10,25 +10,99 @@ import Skeleton from '../components/Skeleton'
 
 const LIMIT = 20
 
+// Default date range: current calendar month
+const getDefaultDateRange = () => {
+  const today = new Date()
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
+  const lastDay = today.toISOString().slice(0, 10) // or end of month, but today is cleaner
+  return { from: firstDay, to: lastDay }
+}
+
 export default function Ledger() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Filter States
   const [customers, setCustomers] = useState([])
-  const [customerId, setCustomerId] = useState(searchParams.get('customer_id') || '')
+  const [customerId, setCustomerId] = useState(() => {
+    return searchParams.get('customer_id') || localStorage.getItem('ledger_customer_id') || ''
+  })
 
-  // Default date range: current calendar month
-  const getDefaultDateRange = () => {
-    const today = new Date()
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
-    const lastDay = today.toISOString().slice(0, 10) // or end of month, but today is cleaner
-    return { from: firstDay, to: lastDay }
-  }
+  const [datePreset, setDatePreset] = useState(() => {
+    return localStorage.getItem('ledger_date_preset') || 'current_month'
+  })
 
-  const initialDates = getDefaultDateRange()
-  const [dateFrom, setDateFrom] = useState(initialDates.from)
-  const [dateTo, setDateTo] = useState(initialDates.to)
-  const [datePreset, setDatePreset] = useState('current_month')
+  const [dateFrom, setDateFrom] = useState(() => {
+    const paramDate = searchParams.get('date')
+    if (paramDate === 'today') {
+      return new Date().toISOString().slice(0, 10)
+    }
+
+    const savedPreset = localStorage.getItem('ledger_date_preset') || 'current_month'
+    if (savedPreset === 'current_month') {
+      const today = new Date()
+      return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
+    } else if (savedPreset === 'custom') {
+      return localStorage.getItem('ledger_date_from') || getDefaultDateRange().from
+    } else {
+      const monthMap = {
+        january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+        july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+      }
+      const monthIdx = monthMap[savedPreset]
+      if (monthIdx !== undefined) {
+        return new Date(new Date().getFullYear(), monthIdx, 1).toISOString().slice(0, 10)
+      }
+    }
+    return getDefaultDateRange().from
+  })
+
+  const [dateTo, setDateTo] = useState(() => {
+    const paramDate = searchParams.get('date')
+    if (paramDate === 'today') {
+      return new Date().toISOString().slice(0, 10)
+    }
+
+    const savedPreset = localStorage.getItem('ledger_date_preset') || 'current_month'
+    if (savedPreset === 'current_month') {
+      return new Date().toISOString().slice(0, 10)
+    } else if (savedPreset === 'custom') {
+      return localStorage.getItem('ledger_date_to') || getDefaultDateRange().to
+    } else {
+      const monthMap = {
+        january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+        july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+      }
+      const monthIdx = monthMap[savedPreset]
+      if (monthIdx !== undefined) {
+        return new Date(new Date().getFullYear(), monthIdx + 1, 0).toISOString().slice(0, 10)
+      }
+    }
+    return getDefaultDateRange().to
+  })
+
+  const [type, setType] = useState(() => {
+    return localStorage.getItem('ledger_type') || 'sale'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('ledger_customer_id', customerId)
+  }, [customerId])
+
+  useEffect(() => {
+    localStorage.setItem('ledger_date_preset', datePreset)
+  }, [datePreset])
+
+  useEffect(() => {
+    localStorage.setItem('ledger_date_from', dateFrom)
+  }, [dateFrom])
+
+  useEffect(() => {
+    localStorage.setItem('ledger_date_to', dateTo)
+  }, [dateTo])
+
+  useEffect(() => {
+    localStorage.setItem('ledger_type', type)
+  }, [type])
 
   const handlePresetChange = (preset) => {
     setDatePreset(preset)
@@ -57,8 +131,6 @@ export default function Ledger() {
     }
     setPage(1)
   }
-
-  const [type, setType] = useState('sale') // 'all', 'sale', 'payment'
 
   // Data States
   const [entries, setEntries] = useState([])
@@ -313,8 +385,9 @@ export default function Ledger() {
   let pageDebit = 0
   let pageCredit = 0
   let pageDiscount = 0
-  let pageFinalValue = 0
-
+  let pageFinalDebit = 0
+  let pageFinalCredit = 0
+  
   entries.forEach((entry) => {
     const isSale = entry.type === 'sale'
     if (isSale) {
@@ -330,11 +403,11 @@ export default function Ledger() {
         finalInt = entry.amount - (entry.discount || 0)
       }
       pageDiscount += discountInt
-      pageFinalValue += finalInt
+      pageFinalDebit += finalInt
     } else {
       pageCredit += -entry.amount
       pageDiscount += entry.discount || 0
-      pageFinalValue += -entry.amount + (entry.discount || 0)
+      pageFinalCredit += -entry.amount + (entry.discount || 0)
     }
   })
 
@@ -669,8 +742,9 @@ export default function Ledger() {
                         <span className="text-gray-400 font-medium">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right font-black text-slate-950 whitespace-nowrap">
-                      {formatCurrency(pageFinalValue)}
+                    <td className="px-6 py-4 text-right font-black whitespace-nowrap text-xs leading-tight space-y-1">
+                      <div className="text-orange-600">Dr: {formatCurrency(pageFinalDebit)}</div>
+                      <div className="text-green-600">Cr: {formatCurrency(pageFinalCredit)}</div>
                     </td>
                     <td className="px-6 py-4"></td>
                     <td className="px-6 py-4 no-print"></td>

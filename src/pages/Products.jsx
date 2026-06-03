@@ -16,8 +16,20 @@ export default function Products() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [sortBy, setSortBy] = useState('name')
-  const [order, setOrder] = useState('ASC')
+  const [sortBy, setSortBy] = useState(() => {
+    return localStorage.getItem('products_sort_by') || 'name'
+  })
+  const [order, setOrder] = useState(() => {
+    return localStorage.getItem('products_order') || 'ASC'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('products_sort_by', sortBy)
+  }, [sortBy])
+
+  useEffect(() => {
+    localStorage.setItem('products_order', order)
+  }, [order])
   const [form, setForm] = useState({ name: '', unit: 'piece', reorder_level: '' })
 
   async function load() {
