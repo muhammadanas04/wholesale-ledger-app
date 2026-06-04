@@ -36,14 +36,14 @@ function registerIpcHandlers() {
 
   // ── Stock Purchases ────────────────────────────────────────────
   ipcMain.handle('stock-purchases:list', wrap((_e, args) => db.getStockPurchases(args)))
-  ipcMain.handle('stock-purchases:count', wrap(() => db.getStockPurchasesCount()))
+  ipcMain.handle('stock-purchases:count', wrap((_e, args) => db.getStockPurchasesCount(args)))
   ipcMain.handle('stock-purchases:get', wrap((_e, id) => db.getStockPurchase(id)))
   ipcMain.handle('stock-purchases:add', wrap((_e, data) => db.addStockPurchase(data)))
   ipcMain.handle('stock-purchases:delete', wrap((_e, id) => db.deleteStockPurchase(id)))
 
   // ── Sales ──────────────────────────────────────────────────────
   ipcMain.handle('sales:list', wrap((_e, args) => db.getSales(args)))
-  ipcMain.handle('sales:count', wrap(() => db.getSalesCount()))
+  ipcMain.handle('sales:count', wrap((_e, args) => db.getSalesCount(args)))
   ipcMain.handle('sales:get', wrap((_e, id) => db.getSale(id)))
   ipcMain.handle('sales:add', wrap((_e, data) => db.addSale(data)))
   ipcMain.handle('sales:delete', wrap((_e, id) => db.deleteSale(id)))
@@ -51,7 +51,7 @@ function registerIpcHandlers() {
 
   // ── Payments ───────────────────────────────────────────────────
   ipcMain.handle('payments:list', wrap((_e, args) => db.getPayments(args)))
-  ipcMain.handle('payments:count', wrap(() => db.getPaymentsCount()))
+  ipcMain.handle('payments:count', wrap((_e, args) => db.getPaymentsCount(args)))
   ipcMain.handle('payments:by-customer', wrap((_e, customerId) => db.getPaymentsByCustomer(customerId)))
   ipcMain.handle('payments:add', wrap((_e, data) => db.addPayment(data)))
   ipcMain.handle('payments:delete', wrap((_e, id) => db.deletePayment(id)))

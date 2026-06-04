@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, Trash2, ShoppingCart, Download } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, Download, Calendar } from 'lucide-react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { saleSchema } from '../lib/schemas'
 import { toast } from 'sonner'
@@ -41,9 +41,16 @@ export default function NewSale() {
   const recentDiscountTotal = recentSales.reduce((sum, s) => sum + (Number(s.discount) || 0), 0)
   const recentFinalTotal = recentSubtotal - recentDiscountTotal
 
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   async function loadRecentSales() {
     try {
-      const list = await ipc('sales:list', { limit: 10 })
+      const list = await ipc('sales:list', {
+        limit: 10,
+        date_from: dateFrom || null,
+        date_to: dateTo || null
+      })
       setRecentSales(list || [])
     } catch (e) {
       console.error('Failed to load recent sales:', e)
@@ -51,11 +58,14 @@ export default function NewSale() {
   }
 
   useEffect(() => {
+    loadRecentSales()
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
     async function load() {
       const prods = await ipc('products:list', { limit: 1000 }) || []
       setCustomers(await ipc('customers:list') || [])
       setProducts(prods)
-      loadRecentSales()
       
       const singleProductVal = await ipc('meta:get', 'single_product_mode')
       const isSingleProduct = singleProductVal === 'true'
@@ -550,6 +560,36 @@ export default function NewSale() {
           >
             <Download className="w-3.5 h-3.5" /> Export Excel
           </button>
+        </div>
+        <div className="px-6 py-2.5 bg-gray-50 border-b border-gray-150 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-455 shrink-0" />
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter Date:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            <span className="text-xs font-bold text-gray-400">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl text-xs font-bold transition-colors uppercase tracking-wider shadow-sm"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

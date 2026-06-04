@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, ShoppingBag, Download, Trash2 } from 'lucide-react'
+import { Plus, ShoppingBag, Download, Trash2, Calendar } from 'lucide-react'
 import { stockPurchaseSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -54,13 +54,22 @@ export default function StockPurchase() {
   const [adjStock, setAdjStock] = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   async function load() {
     setLoading(true)
     const offset = (page - 1) * LIMIT
+    const filters = {
+      limit: LIMIT,
+      offset,
+      date_from: dateFrom || null,
+      date_to: dateTo || null
+    }
     const [prods, data, count, singleProductVal] = await Promise.all([
       ipc('products:list', { limit: 1000 }),
-      ipc('stock-purchases:list', { limit: LIMIT, offset }),
-      ipc('stock-purchases:count'),
+      ipc('stock-purchases:list', filters),
+      ipc('stock-purchases:count', { date_from: dateFrom || null, date_to: dateTo || null }),
       ipc('meta:get', 'single_product_mode')
     ])
     const isSingleProduct = singleProductVal === 'true'
@@ -82,7 +91,7 @@ export default function StockPurchase() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [page])
+  useEffect(() => { load() }, [page, dateFrom, dateTo])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -126,7 +135,11 @@ export default function StockPurchase() {
 
   const handleExportExcel = async () => {
     try {
-      const data = await ipc('stock-purchases:list', { limit: 100000 })
+      const data = await ipc('stock-purchases:list', {
+        limit: 100000,
+        date_from: dateFrom || null,
+        date_to: dateTo || null
+      })
       if (!data || data.length === 0) {
         return toast.error('No purchases to export')
       }
@@ -398,6 +411,36 @@ export default function StockPurchase() {
           >
             <Download className="w-3.5 h-3.5" /> Export Excel
           </button>
+        </div>
+        <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-150 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-450 shrink-0" />
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter Date:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            <span className="text-xs font-bold text-gray-400">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+                className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 rounded-xl text-xs font-bold transition-colors uppercase tracking-wider shadow-sm"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

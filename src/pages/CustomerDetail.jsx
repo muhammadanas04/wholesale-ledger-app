@@ -116,7 +116,7 @@ function BillInvoice({
     finalInt = rounded.finalInt - manualDiscount
   }
 
-  const totalPayments = payments.reduce((sum, p) => sum + p.amount + (p.discount || 0), 0)
+  const totalPayments = payments.reduce((sum, p) => sum + p.amount - (p.discount || 0), 0)
   const grandTotalDue = finalInt - totalPayments
 
   return (
@@ -265,7 +265,7 @@ function BillInvoice({
                     <td className="px-4 py-2.5 text-slate-700 font-semibold">{formatDate(p.date)}</td>
                     <td className="px-4 py-2.5 text-xs text-gray-400 italic font-medium">{p.notes || `Payment #${p.id}`}</td>
                     <td className="text-right px-4 py-2.5 font-bold text-green-700">
-                      {formatCurrency(p.amount + (p.discount || 0))}
+                      {formatCurrency(p.amount - (p.discount || 0))}
                     </td>
                   </tr>
                 ))}
@@ -562,8 +562,8 @@ export default function CustomerDetail() {
       desc: p.notes || 'Payment',
       original_amount: p.amount,
       discount: p.discount || 0,
-      final_amount: p.amount + (p.discount || 0),
-      amount: -(p.amount + (p.discount || 0)),
+      final_amount: p.amount - (p.discount || 0),
+      amount: -(p.amount - (p.discount || 0)),
       id: p.id
     })),
   ].sort((a, b) => {
@@ -751,7 +751,7 @@ export default function CustomerDetail() {
                         )
                       ) : (
                         r.discount > 0 ? (
-                          <span className="text-emerald-600">+{formatCurrency(r.discount)}</span>
+                          <span className="text-red-500">-{formatCurrency(r.discount)}</span>
                         ) : (
                           <span className="text-gray-400 font-medium">-</span>
                         )

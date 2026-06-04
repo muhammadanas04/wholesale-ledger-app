@@ -108,7 +108,7 @@ export default function Ledger() {
     setDatePreset(preset)
     const today = new Date()
     const year = today.getFullYear()
-    
+
     if (preset === 'current_month') {
       const firstDay = new Date(year, today.getMonth(), 1).toISOString().slice(0, 10)
       const lastDay = today.toISOString().slice(0, 10)
@@ -337,8 +337,8 @@ export default function Ledger() {
         return toast.error('No entries to export')
       }
 
-      const headers = ["Date", "Customer Name", "Type", "Reference", "Debit/Dr (₹)", "Credit/Cr (₹)", "Discount (₹)", "Final Value (₹)", "Notes"]
-      
+      const headers = ["Date", "Customer Name", "Type", "Reference", "Debit (₹)", "Credit (₹)", "Discount (₹)", "Final Value (₹)", "Notes"]
+
       const rows = data.map((entry) => {
         const isSale = entry.type === 'sale'
         let discountVal = 0
@@ -353,8 +353,8 @@ export default function Ledger() {
             finalVal = (entry.amount - (entry.discount || 0)) / 100
           }
         } else {
-          discountVal = (entry.discount || 0) / 100
-          finalVal = (-entry.amount + entry.discount) / 100
+          discountVal = -(entry.discount || 0) / 100
+          finalVal = (-entry.amount - (entry.discount || 0)) / 100
         }
 
         return [
@@ -387,7 +387,7 @@ export default function Ledger() {
   let pageDiscount = 0
   let pageFinalDebit = 0
   let pageFinalCredit = 0
-  
+
   entries.forEach((entry) => {
     const isSale = entry.type === 'sale'
     if (isSale) {
@@ -406,8 +406,8 @@ export default function Ledger() {
       pageFinalDebit += finalInt
     } else {
       pageCredit += -entry.amount
-      pageDiscount += entry.discount || 0
-      pageFinalCredit += -entry.amount + (entry.discount || 0)
+      pageDiscount += -(entry.discount || 0)
+      pageFinalCredit += -entry.amount - (entry.discount || 0)
     }
   })
 
@@ -551,8 +551,8 @@ export default function Ledger() {
                   key={t}
                   onClick={() => handleFilterChange(() => setType(t))}
                   className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${type === t
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800'
                     }`}
                 >
                   {t === 'all' ? 'All' : t === 'sale' ? 'Sales' : 'Payments'}
@@ -591,10 +591,10 @@ export default function Ledger() {
                 <th className="text-left px-6 py-3.5">Customer</th>
                 <th className="text-center px-6 py-3.5 w-24">Type</th>
                 <th className="text-left px-6 py-3.5 w-32">Reference</th>
-                <th className="text-right px-6 py-3.5 w-36">Debit (Dr)</th>
-                <th className="text-right px-6 py-3.5 w-36">Credit (Cr)</th>
+                <th className="text-right px-6 py-3.5 w-36">Debit</th>
+                <th className="text-right px-6 py-3.5 w-36">Credit</th>
                 <th className="text-right px-6 py-3.5 w-36">Discount</th>
-                <th className="text-right px-6 py-3.5 w-36">Final Value</th>
+                <th className="text-right px-6 py-3.5 w-36">Balance</th>
                 <th className="text-left px-6 py-3.5">Notes</th>
                 <th className="text-center px-6 py-3.5 w-20 no-print">Action</th>
               </tr>
@@ -637,8 +637,8 @@ export default function Ledger() {
                         </td>
                         <td className="px-6 py-4 text-center whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isSale
-                              ? 'bg-orange-50 text-orange-700 border border-orange-100'
-                              : 'bg-green-50 text-green-700 border border-green-100'
+                            ? 'bg-orange-50 text-orange-700 border border-orange-100'
+                            : 'bg-green-50 text-green-700 border border-green-100'
                             }`}>
                             {entry.type}
                           </span>
@@ -672,8 +672,8 @@ export default function Ledger() {
                             )
                           ) : (
                             entry.discount > 0 ? (
-                              <span className="font-bold text-emerald-600">
-                                +{formatCurrency(entry.discount)}
+                              <span className="font-bold text-red-500">
+                                -{formatCurrency(entry.discount)}
                               </span>
                             ) : (
                               <span className="text-gray-400 font-medium">-</span>
@@ -681,7 +681,7 @@ export default function Ledger() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                          {isSale ? formatCurrency(finalInt) : formatCurrency(-entry.amount + entry.discount)}
+                          {isSale ? formatCurrency(finalInt) : formatCurrency(-entry.amount - entry.discount)}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}
@@ -715,42 +715,49 @@ export default function Ledger() {
                   )}
                 </>
               )}
-              </tbody>
-              {!loading && entries.length > 0 && (
-                <tfoot className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
-                  <tr className="bg-slate-55 hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-slate-800 font-black whitespace-nowrap">Total (Page)</td>
-                    <td className="px-6 py-4"></td>
-                    <td className="px-6 py-4"></td>
-                    <td className="px-6 py-4"></td>
-                    <td className="px-6 py-4 text-right font-black text-orange-600 whitespace-nowrap">
-                      {formatCurrency(pageDebit)}
-                    </td>
-                    <td className="px-6 py-4 text-right font-black text-green-600 whitespace-nowrap">
-                      {formatCurrency(pageCredit)}
-                    </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap font-black">
-                      {pageDiscount < 0 ? (
-                        <span className="text-red-500">
-                          {formatCurrency(pageDiscount)}
-                        </span>
-                      ) : pageDiscount > 0 ? (
-                        <span className="text-emerald-600">
-                          +{formatCurrency(pageDiscount)}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 font-medium">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right font-black whitespace-nowrap text-xs leading-tight space-y-1">
-                      <div className="text-orange-600">Dr: {formatCurrency(pageFinalDebit)}</div>
-                      <div className="text-green-600">Cr: {formatCurrency(pageFinalCredit)}</div>
-                    </td>
-                    <td className="px-6 py-4"></td>
-                    <td className="px-6 py-4 no-print"></td>
-                  </tr>
-                </tfoot>
-              )}
+            </tbody>
+            {!loading && entries.length > 0 && (
+              <tfoot className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
+                <tr className="bg-slate-55 hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 text-slate-800 font-black whitespace-nowrap">Total (Page)</td>
+                  <td className="px-6 py-4"></td>
+                  <td className="px-6 py-4"></td>
+                  <td className="px-6 py-4"></td>
+                  <td className="px-6 py-4 text-right font-black text-orange-600 whitespace-nowrap">
+                    {formatCurrency(pageDebit)}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black text-green-600 whitespace-nowrap">
+                    {formatCurrency(pageCredit)}
+                  </td>
+                  <td className="px-6 py-4 text-right whitespace-nowrap font-black">
+                    {pageDiscount < 0 ? (
+                      <span className="text-red-500">
+                        {formatCurrency(pageDiscount)}
+                      </span>
+                    ) : pageDiscount > 0 ? (
+                      <span className="text-emerald-600">
+                        +{formatCurrency(pageDiscount)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 font-medium">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black whitespace-nowrap">
+                    {pageFinalDebit - pageFinalCredit >= 0 ? (
+                      <span className="text-orange-600">
+                        {formatCurrency(pageFinalDebit - pageFinalCredit)} Dr
+                      </span>
+                    ) : (
+                      <span className="text-green-600">
+                        {formatCurrency(Math.abs(pageFinalDebit - pageFinalCredit))} Cr
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4"></td>
+                  <td className="px-6 py-4 no-print"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 

@@ -258,7 +258,7 @@ function recalculateBalance(customerId) {
   `).get(customerId).total
 
   const paymentsTotal = db.prepare(`
-    SELECT COALESCE(SUM(amount + discount), 0) AS total FROM payments WHERE customer_id = ?
+    SELECT COALESCE(SUM(amount - discount), 0) AS total FROM payments WHERE customer_id = ?
   `).get(customerId).total
 
   const balance = salesTotal - paymentsTotal
@@ -325,18 +325,46 @@ function getLowStockProducts() {
 
 // ── Stock Purchases ────────────────────────────────────────────────
 
-function getStockPurchases({ limit = 50, offset = 0 } = {}) {
-  return db.prepare(`
+function getStockPurchases({ limit = 50, offset = 0, date_from, date_to } = {}) {
+  let sql = `
     SELECT sp.*, p.name AS product_name, p.unit
     FROM stock_purchases sp
     JOIN products p ON p.id = sp.product_id
-    ORDER BY sp.date DESC
-    LIMIT ? OFFSET ?
-  `).all(limit, offset)
+  `
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("sp.date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("sp.date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  sql += " ORDER BY sp.date DESC, sp.id DESC LIMIT ? OFFSET ?"
+  params.push(limit, offset)
+  return db.prepare(sql).all(...params)
 }
 
-function getStockPurchasesCount() {
-  return db.prepare('SELECT COUNT(*) AS count FROM stock_purchases').get().count
+function getStockPurchasesCount({ date_from, date_to } = {}) {
+  let sql = 'SELECT COUNT(*) AS count FROM stock_purchases'
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  return db.prepare(sql).get(...params).count
 }
 
 function getStockPurchase(id) {
@@ -405,21 +433,49 @@ function deleteStockPurchase(id) {
 
 // ── Sales ──────────────────────────────────────────────────────────
 
-function getSales({ limit = 50, offset = 0 } = {}) {
-  return db.prepare(`
+function getSales({ limit = 50, offset = 0, date_from, date_to } = {}) {
+  let sql = `
     SELECT s.*, c.name AS customer_name,
            (SELECT SUM(qty) FROM sale_items WHERE sale_id = s.id) AS qty,
            (SELECT SUM(weight) FROM sale_items WHERE sale_id = s.id) AS weight,
            (SELECT unit_price FROM sale_items WHERE sale_id = s.id LIMIT 1) AS rate
     FROM sales s
     JOIN customers c ON c.id = s.customer_id
-    ORDER BY s.date DESC, s.id DESC
-    LIMIT ? OFFSET ?
-  `).all(limit, offset)
+  `
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("s.date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("s.date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  sql += " ORDER BY s.date DESC, s.id DESC LIMIT ? OFFSET ?"
+  params.push(limit, offset)
+  return db.prepare(sql).all(...params)
 }
 
-function getSalesCount() {
-  return db.prepare('SELECT COUNT(*) AS count FROM sales').get().count
+function getSalesCount({ date_from, date_to } = {}) {
+  let sql = 'SELECT COUNT(*) AS count FROM sales'
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  return db.prepare(sql).get(...params).count
 }
 
 function getSale(id) {
@@ -574,18 +630,46 @@ function updateSale(saleId, { customer_id, date, notes, items, discount = 0, tot
 
 // ── Payments ───────────────────────────────────────────────────────
 
-function getPayments({ limit = 50, offset = 0 } = {}) {
-  return db.prepare(`
+function getPayments({ limit = 50, offset = 0, date_from, date_to } = {}) {
+  let sql = `
     SELECT p.*, c.name AS customer_name
     FROM payments p
     JOIN customers c ON c.id = p.customer_id
-    ORDER BY p.date DESC, p.id DESC
-    LIMIT ? OFFSET ?
-  `).all(limit, offset)
+  `
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("p.date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("p.date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  sql += " ORDER BY p.date DESC, p.id DESC LIMIT ? OFFSET ?"
+  params.push(limit, offset)
+  return db.prepare(sql).all(...params)
 }
 
-function getPaymentsCount() {
-  return db.prepare('SELECT COUNT(*) AS count FROM payments').get().count
+function getPaymentsCount({ date_from, date_to } = {}) {
+  let sql = 'SELECT COUNT(*) AS count FROM payments'
+  const conds = []
+  const params = []
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  return db.prepare(sql).get(...params).count
 }
 
 function getPaymentsByCustomer(customerId) {
@@ -854,7 +938,7 @@ function getLedgerSummary(filters = {}) {
   const sql = `
     SELECT 
       COALESCE(SUM(CASE WHEN type = 'sale' THEN amount - discount ELSE 0 END), 0) AS total_sales,
-      COALESCE(SUM(CASE WHEN type = 'payment' THEN -amount + discount ELSE 0 END), 0) AS total_payments,
+      COALESCE(SUM(CASE WHEN type = 'payment' THEN -amount - discount ELSE 0 END), 0) AS total_payments,
       COUNT(*) AS entry_count
     FROM (
       ${unionSql}

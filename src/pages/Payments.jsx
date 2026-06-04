@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Plus, Wallet, Trash2, Download } from 'lucide-react'
+import { Plus, Wallet, Trash2, Download, Calendar } from 'lucide-react'
 import { paymentSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -27,13 +27,22 @@ export default function Payments() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
 
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   async function load() {
     setLoading(true)
     const offset = (page - 1) * LIMIT
+    const filters = {
+      limit: LIMIT,
+      offset,
+      date_from: dateFrom || null,
+      date_to: dateTo || null
+    }
     const [custs, data, count] = await Promise.all([
       ipc('customers:list', { limit: 1000 }), // Load more for select
-      ipc('payments:list', { limit: LIMIT, offset }),
-      ipc('payments:count')
+      ipc('payments:list', filters),
+      ipc('payments:count', { date_from: dateFrom || null, date_to: dateTo || null })
     ])
     setCustomers(custs || [])
     setPayments(data || [])
@@ -41,7 +50,7 @@ export default function Payments() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [page])
+  useEffect(() => { load() }, [page, dateFrom, dateTo])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -90,7 +99,11 @@ export default function Payments() {
 
   const handleExportExcel = async () => {
     try {
-      const data = await ipc('payments:list', { limit: 100000 })
+      const data = await ipc('payments:list', {
+        limit: 100000,
+        date_from: dateFrom || null,
+        date_to: dateTo || null
+      })
       if (!data || data.length === 0) {
         return toast.error('No payments to export')
       }
@@ -191,6 +204,36 @@ export default function Payments() {
           >
             <Download className="w-3.5 h-3.5" /> Export Excel
           </button>
+        </div>
+        <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-150 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-450 shrink-0" />
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter Date:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            <span className="text-xs font-bold text-gray-400">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
+              className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+                className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl text-xs font-bold transition-colors uppercase tracking-wider shadow-sm"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
