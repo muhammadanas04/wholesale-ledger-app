@@ -197,7 +197,7 @@ function BillInvoice({
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {items.map((item, idx) => {
-                const amount = item.total_price !== null && item.total_price !== undefined ? item.total_price : item.qty * item.unit_price
+                const amount = item.total_price !== null && item.total_price !== undefined ? item.total_price : (item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price)
                 const isSingleItem = items.length === 1
                 const rowDiscount = isSingleItem
                   ? (discountInt !== 0 ? discountInt : (manualDiscount > 0 ? -manualDiscount : 0))

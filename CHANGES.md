@@ -121,3 +121,25 @@
 - **Created a first-class Ledger Screen** (`src/pages/Ledger.jsx`) — a paginated cross-customer statement view equipped with dynamic customer, date range, and transaction type filters, aggregate summary cards, direct row deletions with confirm dialogs, and a clean print-ready stylesheet for PDF downloads.
 - **Wired navigation & cross-links** — added `/ledger` route in `src/main.jsx`, navigation item with `BookOpen` icon in `src/components/Sidebar.jsx`, "View Ledger" quick-link pre-filter on the Dashboard, and "View in Ledger" jump links on Customer Detail.
 - **Registered Ctrl+L keyboard shortcut** in the renderer shortcut listener (`src/main.jsx`) and fully documented it in `README.md`.
+
+## Rate Calculation Formula Change
+
+- **Updated rate calculation formula**: Changed the logic from `rate = total value / quantity` to `rate = total value / weight` across both client-side and backend modules.
+- **Enhanced `NewSale.jsx`**:
+  - Modified the line-item update hook to auto-calculate the rate as `total_price / weight` instead of quantity.
+  - Adjusted error visual-cues/invalid-rate checks to verify the mathematical relationship between `weight`, `rate`, and `total_price` (specifically `Math.abs(weight * rate - total_price) < 0.01`).
+  - Modified the database submission mapper to calculate unit price from weight when a manual rate is omitted.
+  - Fixed total price fallbacks to prioritize `weight * unit_price`.
+  - Added average rate displays (`avg. rate = total value / total weight`) to both the line items total section and the recent sales history table footer.
+- **Enhanced `StockPurchase.jsx`**:
+  - Implemented a `handleWeightChange` method to auto-calculate the purchase rate from `total_cost / weight`.
+  - Re-routed `handleQtyChange` to only update quantity without altering the rate.
+  - Modified `handleTotalCostChange` and error indicator checks to use weight instead of quantity.
+  - Corrected cost price database schema payload mapping to divide by weight if the manual rate field is empty.
+  - Fixed Excel export row generation to calculate the total price fallback as `weight * cost_price`.
+  - Hides the Rate input field and history table Rate column when the `show_rate_field` setting is disabled in Settings.
+  - Added a table footer with column totals and the average rate calculation (`avg. rate = total of final value / total of weight`).
+- **Enhanced `CustomerDetail.jsx`**:
+  - Adjusted the fallback transaction amount logic to prioritize `weight * unit_price` over quantity.
+- **Hardened SQLite queries in `db.js`**:
+  - Adjusted the default total calculations in `addStockPurchase`, `addSale`, and `updateSale` to use `weight * price` where weight is present (falling back to quantity).

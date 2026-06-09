@@ -102,7 +102,7 @@ export default function NewSale() {
               rate: String(item.unit_price / 100),
               total_price: item.total_price !== null && item.total_price !== undefined
                 ? (item.total_price / 100).toFixed(2)
-                : ((item.qty * item.unit_price) / 100).toFixed(2),
+                : ((item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price) / 100).toFixed(2),
               weight: item.weight ? String(item.weight) : ''
             })))
           } else {
@@ -165,12 +165,12 @@ export default function NewSale() {
     const next = [...items]
     const item = { ...next[i], [field]: value }
 
-    const q = parseFloat(item.qty) || 0
+    const w = parseFloat(item.weight) || 0
     const tp = parseFloat(item.total_price) || 0
     const r = parseFloat(item.rate) || 0
 
-    if (q > 0 && tp > 0 && (!item.rate || r === 0)) {
-      item.rate = String(Math.round((tp / q) * 10000) / 10000)
+    if (w > 0 && tp > 0 && (!item.rate || r === 0)) {
+      item.rate = String(Math.round((tp / w) * 10000) / 10000)
     }
 
     next[i] = item
@@ -195,7 +195,7 @@ export default function NewSale() {
         return {
           product_id: Number(i.product_id),
           qty,
-          unit_price: rate > 0 ? rate : (qty > 0 ? totalPrice / qty : 0),
+          unit_price: rate > 0 ? rate : (weight > 0 ? totalPrice / weight : 0),
           total_price: totalPrice,
           weight,
         }
@@ -275,10 +275,10 @@ export default function NewSale() {
   const isSingleRateIncorrect = (() => {
     const item = items[0]
     if (!item) return false
-    const q = parseFloat(item.qty) || 0
+    const w = parseFloat(item.weight) || 0
     const tp = parseFloat(item.total_price) || 0
     const r = parseFloat(item.rate) || 0
-    return q > 0 && tp > 0 && r > 0 && Math.abs(q * r - tp) >= 0.01
+    return w > 0 && tp > 0 && r > 0 && Math.abs(w * r - tp) >= 0.01
   })()
 
   return (
@@ -405,10 +405,10 @@ export default function NewSale() {
               </div>
 
               {items.map((item, i) => {
-                const q = parseFloat(item.qty) || 0
+                const w = parseFloat(item.weight) || 0
                 const tp = parseFloat(item.total_price) || 0
                 const r = parseFloat(item.rate) || 0
-                const isRateIncorrect = q > 0 && tp > 0 && r > 0 && Math.abs(q * r - tp) >= 0.01
+                const isRateIncorrect = w > 0 && tp > 0 && r > 0 && Math.abs(w * r - tp) >= 0.01
 
                 return (
                   <div key={i} className="flex items-end gap-2 border-b border-gray-100 pb-3">
@@ -475,7 +475,9 @@ export default function NewSale() {
                   <div className="w-24 px-3 text-gray-800">
                     {itemsQtyTotal > 0 ? itemsQtyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
                   </div>
-                  <div className="w-28 px-3"></div>
+                  <div className="w-28 px-3 text-right text-gray-800 font-semibold">
+                    {itemsWeightTotal > 0 ? `₹${(subtotal / itemsWeightTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                  </div>
                   <div className="w-24 px-3 text-gray-800">
                     {itemsWeightTotal > 0 ? itemsWeightTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
                   </div>
@@ -681,7 +683,9 @@ export default function NewSale() {
                     {recentWeightTotal > 0 ? `${recentWeightTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg` : '-'}
                   </td>
                   {showRateField && (
-                    <td className="px-6 py-4 text-right text-gray-400 font-medium">-</td>
+                    <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
+                      {recentWeightTotal > 0 ? fmt(recentFinalTotal / recentWeightTotal) : '-'}
+                    </td>
                   )}
                   <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
                     {fmt(recentSubtotal)}

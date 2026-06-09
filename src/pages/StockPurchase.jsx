@@ -16,29 +16,33 @@ export default function StockPurchase() {
   const [purchases, setPurchases] = useState([])
 
   const handleQtyChange = (val) => {
-    const qtyNum = parseFloat(val) || 0
-    const totalNum = parseFloat(form.total_cost) || 0
-    const rateNum = parseFloat(form.rate) || 0
-
-    let newRate = form.rate
-    if (qtyNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
-      newRate = String(Math.round((totalNum / qtyNum) * 10000) / 10000)
-    }
-    setForm(f => ({ ...f, qty: val, rate: newRate }))
+    setForm(f => ({ ...f, qty: val }))
   }
 
   const handleRateChange = (val) => {
     setForm(f => ({ ...f, rate: val }))
   }
 
-  const handleTotalCostChange = (val) => {
-    const totalNum = parseFloat(val) || 0
-    const qtyNum = parseFloat(form.qty) || 0
+  const handleWeightChange = (val) => {
+    const weightNum = parseFloat(val) || 0
+    const totalNum = parseFloat(form.total_cost) || 0
     const rateNum = parseFloat(form.rate) || 0
 
     let newRate = form.rate
-    if (qtyNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
-      newRate = String(Math.round((totalNum / qtyNum) * 10000) / 10000)
+    if (weightNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
+      newRate = String(Math.round((totalNum / weightNum) * 10000) / 10000)
+    }
+    setForm(f => ({ ...f, weight: val, rate: newRate }))
+  }
+
+  const handleTotalCostChange = (val) => {
+    const totalNum = parseFloat(val) || 0
+    const weightNum = parseFloat(form.weight) || 0
+    const rateNum = parseFloat(form.rate) || 0
+
+    let newRate = form.rate
+    if (weightNum > 0 && totalNum > 0 && (!form.rate || rateNum === 0)) {
+      newRate = String(Math.round((totalNum / weightNum) * 10000) / 10000)
     }
     setForm(f => ({ ...f, total_cost: val, rate: newRate }))
   }
@@ -49,6 +53,7 @@ export default function StockPurchase() {
   const [singleProductMode, setSingleProductMode] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
+  const [showRateField, setShowRateField] = useState(true)
 
   const [adjProductId, setAdjProductId] = useState('')
   const [adjStock, setAdjStock] = useState('')
@@ -66,14 +71,16 @@ export default function StockPurchase() {
       date_from: dateFrom || null,
       date_to: dateTo || null
     }
-    const [prods, data, count, singleProductVal] = await Promise.all([
+    const [prods, data, count, singleProductVal, rateFieldVal] = await Promise.all([
       ipc('products:list', { limit: 1000 }),
       ipc('stock-purchases:list', filters),
       ipc('stock-purchases:count', { date_from: dateFrom || null, date_to: dateTo || null }),
-      ipc('meta:get', 'single_product_mode')
+      ipc('meta:get', 'single_product_mode'),
+      ipc('meta:get', 'show_rate_field')
     ])
     const isSingleProduct = singleProductVal === 'true'
     setSingleProductMode(isSingleProduct)
+    setShowRateField(rateFieldVal !== 'false')
     const productsList = prods || []
     setProducts(productsList)
     setPurchases(data || [])
@@ -103,7 +110,7 @@ export default function StockPurchase() {
     const purchaseData = {
       product_id: Number(form.product_id),
       qty,
-      cost_price: form.rate ? Number(form.rate) : (qty > 0 ? totalCost / qty : 0),
+      cost_price: form.rate ? Number(form.rate) : (weight > 0 ? totalCost / weight : 0),
       total_cost: totalCost,
       supplier: form.supplier || '',
       firm_name: form.firm_name || '',
@@ -157,7 +164,7 @@ export default function StockPurchase() {
         p.unit,
         p.weight > 0 ? p.weight : 0,
         p.cost_price / 100,
-        p.total_cost !== null && p.total_cost !== undefined ? p.total_cost / 100 : (p.qty * p.cost_price) / 100,
+        p.total_cost !== null && p.total_cost !== undefined ? p.total_cost / 100 : (p.weight > 0 ? p.weight * p.cost_price : p.qty * p.cost_price) / 100,
         p.supplier || '',
         p.firm_name || '',
         p.bill_no || '',
@@ -217,11 +224,15 @@ export default function StockPurchase() {
   }
 
   const isRateIncorrect = (() => {
-    const q = parseFloat(form.qty) || 0
+    const w = parseFloat(form.weight) || 0
     const tc = parseFloat(form.total_cost) || 0
     const r = parseFloat(form.rate) || 0
-    return q > 0 && tc > 0 && r > 0 && Math.abs(q * r - tc) >= 0.01
+    return w > 0 && tc > 0 && r > 0 && Math.abs(w * r - tc) >= 0.01
   })()
+
+  const purchasesQtyTotal = purchases.reduce((sum, p) => sum + (Number(p.qty) || 0), 0)
+  const purchasesWeightTotal = purchases.reduce((sum, p) => sum + (Number(p.weight) || 0), 0)
+  const purchasesTotalCost = purchases.reduce((sum, p) => sum + (p.total_cost !== null && p.total_cost !== undefined ? p.total_cost : (p.weight > 0 ? p.weight * p.cost_price : p.qty * p.cost_price)), 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -314,22 +325,24 @@ export default function StockPurchase() {
                 step="any"
                 placeholder="Weight (optional)"
                 value={form.weight}
-                onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                onChange={(e) => handleWeightChange(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
-                type="number"
-                step="any"
-                placeholder="Rate (₹)"
-                value={form.rate}
-                onChange={(e) => handleRateChange(e.target.value)}
-                required
-                className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
-                  isRateIncorrect
-                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
-                    : 'border-gray-300 focus:ring-blue-500'
-                }`}
-              />
+              {showRateField && (
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Rate (₹)"
+                  value={form.rate}
+                  onChange={(e) => handleRateChange(e.target.value)}
+                  required
+                  className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                    isRateIncorrect
+                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
+                />
+              )}
               <input
                 type="number"
                 step="0.01"
@@ -449,7 +462,7 @@ export default function StockPurchase() {
                 <th className="text-left px-5 py-3">Date</th>
                 {!singleProductMode && <th className="text-left px-5 py-3">Product</th>}
                 <th className="text-right px-5 py-3">Qty</th>
-                <th className="text-right px-5 py-3">Rate</th>
+                {showRateField && <th className="text-right px-5 py-3">Rate</th>}
                 <th className="text-right px-5 py-3">Total Cost</th>
                 <th className="text-left px-5 py-3">Location</th>
                 <th className="text-left px-5 py-3">Bill No</th>
@@ -463,7 +476,7 @@ export default function StockPurchase() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={singleProductMode ? 11 : 12} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={singleProductMode ? (showRateField ? 11 : 10) : (showRateField ? 12 : 11)} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
@@ -479,7 +492,7 @@ export default function StockPurchase() {
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-700 font-semibold">{formatCurrency(p.cost_price)}</td>
+                      {showRateField && <td className="px-5 py-3 text-right text-gray-700 font-semibold">{formatCurrency(p.cost_price)}</td>}
                       <td className="px-5 py-3 text-right text-orange-600 font-bold">
                         {p.total_cost !== null && p.total_cost !== undefined ? formatCurrency(p.total_cost) : formatCurrency(p.qty * p.cost_price)}
                       </td>
@@ -501,11 +514,37 @@ export default function StockPurchase() {
                     </tr>
                   ))}
                   {purchases.length === 0 && (
-                    <tr><td colSpan={singleProductMode ? 11 : 12} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
+                    <tr><td colSpan={singleProductMode ? (showRateField ? 11 : 10) : (showRateField ? 12 : 11)} className="text-center py-12 text-gray-400 italic">No purchases recorded</td></tr>
                   )}
                 </>
               )}
             </tbody>
+            {!loading && purchases.length > 0 && (
+              <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs font-bold text-gray-700">
+                <tr>
+                  <td className="px-5 py-3 text-gray-900 font-black uppercase tracking-wider" colSpan={singleProductMode ? 1 : 2}>
+                    Total
+                  </td>
+                  <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                    <div>{purchasesQtyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+                    {purchasesWeightTotal > 0 && (
+                      <div className="text-[10px] text-gray-400 font-bold lowercase tracking-normal">
+                        {purchasesWeightTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} kg
+                      </div>
+                    )}
+                  </td>
+                  {showRateField && (
+                    <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                      {purchasesWeightTotal > 0 ? formatCurrency(purchasesTotalCost / purchasesWeightTotal) : '-'}
+                    </td>
+                  )}
+                  <td className="px-5 py-3 text-right font-bold text-orange-600 whitespace-nowrap">
+                    {formatCurrency(purchasesTotalCost)}
+                  </td>
+                  <td colSpan={7}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         <Pagination current={page} total={total} onPageChange={setPage} />

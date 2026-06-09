@@ -401,7 +401,7 @@ function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight,
       bill_no || null,
       vehicle_number || null,
       driver_name || null,
-      total_cost !== undefined ? total_cost : Math.round(qty * cost_price)
+      total_cost !== undefined ? total_cost : Math.round(weight > 0 ? weight * cost_price : qty * cost_price)
     )
     updateStock.run(qty, product_id)
     return result.lastInsertRowid
@@ -517,13 +517,13 @@ function addSale({ customer_id, date, notes, items, discount = 0, total_amount }
   `)
 
   const transaction = db.transaction(() => {
-    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : item.qty * item.unit_price), 0)
+    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : (item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price)), 0)
     const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
     const result = insertSale.run(customer_id, date, finalTotal, discount || 0, notes || null)
     const saleId = result.lastInsertRowid
 
     for (const item of items) {
-      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.qty * item.unit_price)
+      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price)
       insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null, itemTotal)
       deductStock.run(item.qty, item.product_id)
     }
@@ -604,13 +604,13 @@ function updateSale(saleId, { customer_id, date, notes, items, discount = 0, tot
     deleteItems.run(saleId)
 
     // 3. Update the main sales record
-    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : item.qty * item.unit_price), 0)
+    const calculatedTotal = items.reduce((sum, item) => sum + (item.total_price !== undefined ? item.total_price : (item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price)), 0)
     const finalTotal = total_amount !== undefined ? total_amount : calculatedTotal
     updateSaleStmt.run(customer_id, date, finalTotal, discount || 0, notes || null, saleId)
 
     // 4. Insert new items and deduct stock
     for (const item of items) {
-      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.qty * item.unit_price)
+      const itemTotal = item.total_price !== undefined ? item.total_price : Math.round(item.weight > 0 ? item.weight * item.unit_price : item.qty * item.unit_price)
       insertItem.run(saleId, item.product_id, item.qty, item.unit_price, item.weight !== undefined ? item.weight : null, itemTotal)
       deductStock.run(item.qty, item.product_id)
     }
