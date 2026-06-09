@@ -50,3 +50,10 @@ export const stockPurchaseSchema = z.object({
   vehicle_number: z.string().optional().or(z.literal('')),
   driver_name: z.string().optional().or(z.literal('')),
 })
+
+export const otherExpenseSchema = z.object({
+  money_spent: z.number().nonnegative('Money spent must be positive or zero'),
+  money_gained: z.number().nonnegative('Money gained must be positive or zero'),
+  reason: z.string().min(2, 'Reason must be at least 2 characters'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+})

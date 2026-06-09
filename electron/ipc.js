@@ -61,6 +61,12 @@ function registerIpcHandlers() {
   ipcMain.handle('ledger:count', wrap((_e, args) => db.getLedgerCount(args)))
   ipcMain.handle('ledger:summary', wrap((_e, args) => db.getLedgerSummary(args)))
 
+  // ── Other Expenses ─────────────────────────────────────────────
+  ipcMain.handle('other-expenses:list', wrap((_e, args) => db.getOtherExpenses(args)))
+  ipcMain.handle('other-expenses:count', wrap((_e, args) => db.getOtherExpensesCount(args)))
+  ipcMain.handle('other-expenses:add', wrap((_e, data) => db.addOtherExpense(data)))
+  ipcMain.handle('other-expenses:delete', wrap((_e, id) => db.deleteOtherExpense(id)))
+
   // ── Reports ────────────────────────────────────────────────────
   ipcMain.handle('reports:sales-range', wrap((_e, startDate, endDate) => db.getSalesInRange(startDate, endDate)))
   ipcMain.handle('reports:top-products', wrap((_e, startDate, endDate) => db.getTopProducts(startDate, endDate)))

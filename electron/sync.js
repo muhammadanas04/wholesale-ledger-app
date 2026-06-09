@@ -65,7 +65,7 @@ async function runSyncCycle() {
       }
     }
 
-    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
+    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
 
     db.transaction(() => {
       for (const table of tables) {

@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 8
+const SCHEMA_VERSION = 9
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -111,6 +111,17 @@ function migrate() {
       deleted_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS other_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      money_spent INTEGER NOT NULL DEFAULT 0,
+      money_gained INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL,
+      date TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      synced INTEGER DEFAULT 0
+    );
   `)
 
   let version = 1
@@ -189,6 +200,25 @@ function migrate() {
     try {
       db.exec("UPDATE stock_purchases SET total_cost = CAST(ROUND(qty * cost_price) AS INTEGER) WHERE total_cost IS NULL;")
     } catch (e) {}
+  }
+
+  if (version < 9) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS other_expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          money_spent INTEGER NOT NULL DEFAULT 0,
+          money_gained INTEGER NOT NULL DEFAULT 0,
+          reason TEXT NOT NULL,
+          date TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 9 failed:', e)
+    }
   }
 
   if (version < SCHEMA_VERSION) {
@@ -1005,6 +1035,109 @@ module.exports = {
   getPaymentsCount,
   addPayment,
   deletePayment,
+// ── Other Expenses ─────────────────────────────────────────────────
+
+function getOtherExpenses({ limit = 50, offset = 0, date_from, date_to, search } = {}) {
+  let sql = `SELECT * FROM other_expenses`
+  const conds = []
+  const params = []
+  
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (search) {
+    conds.push("reason LIKE ?")
+    params.push(`%${search}%`)
+  }
+  
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  sql += " ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
+  params.push(limit, offset)
+  return db.prepare(sql).all(...params)
+}
+
+function getOtherExpensesCount({ date_from, date_to, search } = {}) {
+  let sql = `SELECT COUNT(*) AS count FROM other_expenses`
+  const conds = []
+  const params = []
+  
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (search) {
+    conds.push("reason LIKE ?")
+    params.push(`%${search}%`)
+  }
+  
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  return db.prepare(sql).get(...params).count
+}
+
+function addOtherExpense({ money_spent, money_gained, reason, date }) {
+  const stmt = db.prepare(`
+    INSERT INTO other_expenses (money_spent, money_gained, reason, date)
+    VALUES (?, ?, ?, ?)
+  `)
+  const result = stmt.run(money_spent, money_gained, reason, date)
+  return db.prepare(`SELECT * FROM other_expenses WHERE id = ?`).get(result.lastInsertRowid)
+}
+
+function deleteOtherExpense(id) {
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM other_expenses WHERE id = ?').run(id)
+    db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('other_expenses', id)
+  })
+  transaction()
+  return true
+}
+
+module.exports = {
+  initDatabase,
+  getDatabase,
+  getCustomers,
+  getCustomersCount,
+  getCustomer,
+  addCustomer,
+  updateCustomer,
+  searchCustomers,
+  recalculateBalance,
+  getProducts,
+  getProductsCount,
+  getProduct,
+  addProduct,
+  updateProduct,
+  adjustProductStock,
+  getLowStockProducts,
+  getStockPurchases,
+  getStockPurchase,
+  getStockPurchasesCount,
+  addStockPurchase,
+  deleteStockPurchase,
+  getSales,
+  getSale,
+  getSalesCount,
+  addSale,
+  deleteSale,
+  updateSale,
+  getPayments,
+  getPaymentsByCustomer,
+  getPaymentsCount,
+  addPayment,
+  deletePayment,
   getSalesInRange,
   getTopProducts,
   getTopCustomers,
@@ -1015,5 +1148,9 @@ module.exports = {
   getLedgerSummary,
   getMeta,
   setMeta,
+  getOtherExpenses,
+  getOtherExpensesCount,
+  addOtherExpense,
+  deleteOtherExpense,
 }
 

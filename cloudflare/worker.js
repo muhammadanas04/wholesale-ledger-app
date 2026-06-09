@@ -15,7 +15,7 @@ export default {
     // ── GET /pull ────────────────────────────────────────────────
     if (request.method === 'GET' && url.pathname === '/pull') {
       const since = url.searchParams.get('since') || '1970-01-01 00:00:00'
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
       const results = {}
 
       for (const table of tables) {
@@ -52,7 +52,7 @@ export default {
     // ── POST /push ───────────────────────────────────────────────
     if (request.method === 'POST' && url.pathname === '/push') {
       const data = await request.json()
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
 
       try {
         for (const table of tables) {

@@ -143,3 +143,18 @@
   - Adjusted the fallback transaction amount logic to prioritize `weight * unit_price` over quantity.
 - **Hardened SQLite queries in `db.js`**:
   - Adjusted the default total calculations in `addStockPurchase`, `addSale`, and `updateSale` to use `weight * price` where weight is present (falling back to quantity).
+
+## Other Expenses Feature
+
+- **Added `other_expenses` database schema**:
+  - Registered `other_expenses` table definition in cloudflare D1 schema [`schema.sql`](file:///home/anas/Development/Projects/wholesale-personal/cloudflare/schema.sql) and push/pull sync in [`worker.js`](file:///home/anas/Development/Projects/wholesale-personal/cloudflare/worker.js).
+  - Integrated `other_expenses` in local sync sync engine in [`sync.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/sync.js).
+  - Created migration version 9 block in [`db.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/db.js) to initialize the `other_expenses` table with money spent, money gained, reason, date, and sync flags.
+  - Implemented backend CRUD helper functions for list, count, add, and delete in [`db.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/db.js).
+- **Added backend IPC handlers**: Registered `other-expenses:list`, `other-expenses:count`, `other-expenses:add`, and `other-expenses:delete` in [`ipc.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/ipc.js).
+- **Created validation schemas**: Registered Zod validation schema `otherExpenseSchema` in [`schemas.js`](file:///home/anas/Development/Projects/wholesale-personal/src/lib/schemas.js).
+- **Implemented new screen UI**:
+  - Created [`OtherExpenses.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/OtherExpenses.jsx) equipped with money spent, money gained, reason, and date inputs, pagination, date presets/search filters, total footer section showing column aggregates, confirmation dialog for entry deletion, and Excel export.
+  - Added new route and `Alt+O` keyboard shortcut inside [`main.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/main.jsx).
+  - Registered navigation item with a `Receipt` icon inside [`Sidebar.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/components/Sidebar.jsx).
+

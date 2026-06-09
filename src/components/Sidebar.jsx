@@ -10,7 +10,8 @@ import {
   BookOpen, 
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Receipt
 } from 'lucide-react'
 import { ipc } from '../lib/ipc'
 
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/stock-purchase', label: 'Stock Purchase', icon: TrendingUp },
   { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },
+  { to: '/other-expenses', label: 'Other Expenses', icon: Receipt },
 ]
 
 export default function Sidebar() {
