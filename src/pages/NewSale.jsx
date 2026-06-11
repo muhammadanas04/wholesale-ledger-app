@@ -47,7 +47,7 @@ export default function NewSale() {
   async function loadRecentSales() {
     try {
       const list = await ipc('sales:list', {
-        limit: 10,
+        limit: 100000,
         date_from: dateFrom || null,
         date_to: dateTo || null
       })
@@ -169,15 +169,17 @@ export default function NewSale() {
     const tp = parseFloat(item.total_price) || 0
     const r = parseFloat(item.rate) || 0
 
-    if (w > 0 && tp > 0 && (!item.rate || r === 0)) {
+    if (w > 0 && tp > 0 && (field === 'weight' || field === 'total_price' || !item.rate || r === 0)) {
       item.rate = String(Math.round((tp / w) * 10000) / 10000)
+    } else if (w === 0) {
+      item.rate = ''
     }
 
     next[i] = item
     setItems(next)
   }
 
-  const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN')}`
+  const fmt = (n) => `₹${(n / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -631,7 +633,7 @@ export default function NewSale() {
                     </td>
                     {showRateField && (
                       <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
-                        {sale.rate ? fmt(sale.rate) : '-'}
+                        {sale.weight > 0 ? fmt(sub / sale.weight) : '-'}
                       </td>
                     )}
                     <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">

@@ -36,3 +36,7 @@ This document tracks technical and user-experience improvements.
 - **GST Support:** Simple tax calculation fields.
 - **Automated Testing:** Implement Vitest for DB logic and Playwright for Electron E2E flows.
 
+### 5. Identified Code Issues & Refinements
+- **Bi-directional Rate Recalculation:** In `NewSale.jsx` and `StockPurchase.jsx`, the rate is auto-calculated only if the rate field is empty or zero. If the user subsequently adjusts the weight or total amount, the rate does not dynamically re-calculate, leading to validation warnings unless cleared manually.
+- **Code Duplication in Rounding Logic:** The `applyRounding` utility function and its helper `getModulus` are duplicated in both `CustomerDetail.jsx` and `Ledger.jsx`. This should be unified in `src/lib/formatters.js` or a common library file.
+- **Unrounded Database Totals vs. Rounded UI Totals:** Rounding rules are applied client-side at render time. While this keeps raw database transactions clean, the SQLite database totals differ from what the user sees on the UI screens, which could lead to reporting discrepancies if raw database audits are performed.

@@ -32,10 +32,9 @@ export default function Payments() {
 
   async function load() {
     setLoading(true)
-    const offset = (page - 1) * LIMIT
     const filters = {
-      limit: LIMIT,
-      offset,
+      limit: 100000,
+      offset: 0,
       date_from: dateFrom || null,
       date_to: dateTo || null
     }
@@ -46,7 +45,7 @@ export default function Payments() {
     ])
     setCustomers(custs || [])
     setPayments(data || [])
-    setTotal(Math.ceil((count || 0) / LIMIT))
+    setTotal(1)
     setLoading(false)
   }
 
@@ -286,7 +285,6 @@ export default function Payments() {
             </tbody>
           </table>
         </div>
-        <Pagination current={page} total={total} onPageChange={setPage} />
       </div>
 
       <ConfirmDialog

@@ -34,15 +34,15 @@ export default function Products() {
 
   async function load() {
     setLoading(true)
-    const offset = (page - 1) * LIMIT
+    const offset = 0
 
     const [data, count] = await Promise.all([
-      ipc('products:list', { limit: LIMIT, offset, sortBy, order }),
+      ipc('products:list', { limit: 100000, offset, sortBy, order }),
       ipc('products:count')
     ])
 
     setProducts(data || [])
-    setTotal(Math.ceil((count || 0) / LIMIT))
+    setTotal(1)
     setLoading(false)
   }
 
@@ -184,7 +184,6 @@ export default function Products() {
               <p className="text-gray-400 text-sm col-span-full text-center py-8 bg-white border border-dashed border-gray-200 rounded-xl">No products yet</p>
             )}
           </div>
-          <Pagination current={page} total={total} onPageChange={setPage} />
         </>
       )}
     </div>

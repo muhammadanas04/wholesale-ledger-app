@@ -1002,39 +1002,7 @@ function setMeta(key, value) {
   `).run(key, String(value))
 }
 
-module.exports = {
-  initDatabase,
-  getDatabase,
-  getCustomers,
-  getCustomer,
-  getCustomersCount,
-  addCustomer,
-  updateCustomer,
-  searchCustomers,
-  recalculateBalance,
-  getProducts,
-  getProduct,
-  getProductsCount,
-  addProduct,
-  updateProduct,
-  adjustProductStock,
-  getLowStockProducts,
-  getStockPurchases,
-  getStockPurchase,
-  getStockPurchasesCount,
-  addStockPurchase,
-  deleteStockPurchase,
-  getSales,
-  getSale,
-  getSalesCount,
-  addSale,
-  deleteSale,
-  updateSale,
-  getPayments,
-  getPaymentsByCustomer,
-  getPaymentsCount,
-  addPayment,
-  deletePayment,
+
 // ── Other Expenses ─────────────────────────────────────────────────
 
 function getOtherExpenses({ limit = 50, offset = 0, date_from, date_to, search } = {}) {

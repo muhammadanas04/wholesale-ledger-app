@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
 import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw, Printer, Pencil } from 'lucide-react'
-import { formatCurrency, formatDate } from '../lib/formatters'
+import { formatCurrency, formatDate, applyRounding } from '../lib/formatters'
 import { toast } from 'sonner'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Pagination from '../components/Pagination'
@@ -158,59 +158,6 @@ export default function Ledger() {
     loadConfig()
   }, [])
 
-  // Auto-detect modulus from rule range values
-  function getModulus(from, to) {
-    const maxVal = Math.max(Math.abs(from), Math.abs(to))
-    if (maxVal < 1) return 1        // decimal rules: 0.0-0.9 → mod 1
-    if (maxVal < 10) return 10       // ones digit: 0-9 → mod 10
-    if (maxVal < 100) return 100     // tens: 10-99 → mod 100
-    if (maxVal < 1000) return 1000   // hundreds: 100-999 → mod 1000
-    return 10
-  }
-
-  // Apply rounding based on ceil/floor rules
-  function applyRounding(amountInt, config) {
-    const amount = Number(amountInt)
-    if (isNaN(amount) || !config || !(config.enabled === true || config.enabled === 'true')) {
-      return { discountInt: 0, finalInt: isNaN(amount) ? amountInt : amount }
-    }
-
-    const isNegative = amount < 0
-    const absVal = Math.abs(amount)
-    const amountDecimal = absVal / 100
-
-    // Try each rule: ceil first, then floor
-    const rules = [
-      { ...config.ceil, action: 'ceil' },
-      { ...config.floor, action: 'floor' }
-    ]
-
-    for (const rule of rules) {
-      const fromVal = parseFloat(rule.from)
-      const toVal = parseFloat(rule.to)
-      if (isNaN(fromVal) || isNaN(toVal)) continue
-
-      const modulus = getModulus(fromVal, toVal)
-      const relevantPart = amountDecimal % modulus
-      const eps = 0.0001
-
-      if (relevantPart >= fromVal - eps && relevantPart <= toVal + eps) {
-        let finalDecimal
-        if (rule.action === 'ceil') {
-          finalDecimal = amountDecimal - relevantPart
-        } else {
-          finalDecimal = amountDecimal - relevantPart + modulus
-        }
-
-        const finalInt = Math.round(finalDecimal * 100) * (isNegative ? -1 : 1)
-        const discountInt = finalInt - amount
-        return { discountInt, finalInt }
-      }
-    }
-
-    return { discountInt: 0, finalInt: amount }
-  }
-
 
   // Load URL query params on mount/change
   useEffect(() => {
@@ -244,8 +191,8 @@ export default function Ledger() {
       date_from: dateFrom || null,
       date_to: dateTo || null,
       type: type,
-      limit: LIMIT,
-      offset: (page - 1) * LIMIT
+      limit: 100000,
+      offset: 0
     }
 
     try {
@@ -256,7 +203,7 @@ export default function Ledger() {
       ])
 
       setEntries(list || [])
-      setTotalPages(Math.ceil((count || 0) / LIMIT))
+      setTotalPages(1)
       if (sum) setSummary(sum)
     } catch (err) {
       toast.error('Failed to load ledger data')
@@ -761,12 +708,6 @@ export default function Ledger() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="no-print border-t border-gray-100">
-            <Pagination current={page} total={totalPages} onPageChange={setPage} />
-          </div>
-        )}
       </div>
 
       {/* Confirm Dialog */}

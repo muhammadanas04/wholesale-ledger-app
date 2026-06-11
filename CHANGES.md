@@ -158,3 +158,26 @@
   - Added new route and `Alt+O` keyboard shortcut inside [`main.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/main.jsx).
   - Registered navigation item with a `Receipt` icon inside [`Sidebar.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/components/Sidebar.jsx).
 
+## Refinements & Bug Fixes (from IMPROVE.md)
+
+- **Removed Pagination/Limits from Tabs**:
+  - Removed page limits and pagination controls across all main page tabs: [`Customers.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Customers.jsx), [`Products.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Products.jsx), Recent Sales list in [`NewSale.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/NewSale.jsx), [`StockPurchase.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/StockPurchase.jsx), [`Payments.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Payments.jsx), [`Ledger.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Ledger.jsx), and [`OtherExpenses.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/OtherExpenses.jsx).
+  - Increased query limits to `100000` to fetch all matching entries at once, meaning results are now restricted only by user-applied filters (e.g. search or date range).
+- **Dynamic Rate Column Calculation**:
+  - Modified all rate display columns to dynamically calculate values using the formula `total cost / weight` instead of rendering the stored rate from the database. If the weight is not specified, the rate remains empty (blank).
+  - Applied to the recent sales history list in [`NewSale.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/NewSale.jsx), stock purchases list & Excel export in [`StockPurchase.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/StockPurchase.jsx), expanded invoice items list in [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx), and ledger transactions list in [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx).
+- **As-Is Total Cost Entry**:
+  - Ensured that user-entered total cost/price values are saved exactly as entered in the form input fields and not auto-calculated or recalculated using weight and rate, preventing any floating point precision errors. If weight is not specified, the rate is not filled in the forms.
+- **Fixed Startup Crash due to Syntax Error**:
+  - Resolved an unclosed `module.exports` statement in [`db.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/db.js) which was causing a `SyntaxError: Unexpected identifier 'getOtherExpenses'` in the Electron main process startup.
+- **Fixed Bi-directional Rate Recalculation**:
+  - In [`NewSale.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/NewSale.jsx), updated `updateItem` so changing `weight` or `total_price` dynamically recalculates the item's `rate` without requiring manually clearing or zeroing out the rate field first.
+  - In [`StockPurchase.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/StockPurchase.jsx), updated `handleWeightChange` and `handleTotalCostChange` to always dynamically recalculate the purchase rate when both weight and total cost inputs are valid.
+- **Removed Code Duplication in Rounding Logic**:
+  - Extracted the duplicate definitions of `getModulus` and `applyRounding` from [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx) and [`Ledger.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Ledger.jsx) and relocated them into [`formatters.js`](file:///home/anas/Development/Projects/wholesale-personal/src/lib/formatters.js) as common exports.
+  - Updated [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx) and [`Ledger.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Ledger.jsx) to import these functions from the shared utility module.
+
+
+
+
+

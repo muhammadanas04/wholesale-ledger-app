@@ -34,10 +34,9 @@ export default function OtherExpenses() {
 
   async function load() {
     setLoading(true)
-    const offset = (page - 1) * LIMIT
     const filters = {
-      limit: LIMIT,
-      offset,
+      limit: 100000,
+      offset: 0,
       date_from: dateFrom || null,
       date_to: dateTo || null,
       search: search || null
@@ -47,7 +46,7 @@ export default function OtherExpenses() {
       ipc('other-expenses:count', { date_from: dateFrom || null, date_to: dateTo || null, search: search || null })
     ])
     setExpenses(data || [])
-    setTotal(Math.ceil((count || 0) / LIMIT))
+    setTotal(1)
     setLoading(false)
   }
 
@@ -316,7 +315,6 @@ export default function OtherExpenses() {
             )}
           </table>
         </div>
-        <Pagination current={page} total={total} onPageChange={setPage} />
       </div>
 
       <ConfirmDialog
