@@ -396,6 +396,12 @@ function getStockPurchasesCount({ date_from, date_to } = {}) {
   }
   return db.prepare(sql).get(...params).count
 }
+function getStockPurchaseSuggestions() {
+  const firmNames = db.prepare("SELECT DISTINCT firm_name FROM stock_purchases WHERE firm_name IS NOT NULL AND firm_name != '' ORDER BY firm_name ASC").all().map(r => r.firm_name)
+  const suppliers = db.prepare("SELECT DISTINCT supplier FROM stock_purchases WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier ASC").all().map(r => r.supplier)
+  const locations = db.prepare("SELECT DISTINCT location FROM stock_purchases WHERE location IS NOT NULL AND location != '' ORDER BY location ASC").all().map(r => r.location)
+  return { firmNames, suppliers, locations }
+}
 
 function getStockPurchase(id) {
   return db.prepare(`
@@ -405,6 +411,8 @@ function getStockPurchase(id) {
     WHERE sp.id = ?
   `).get(id)
 }
+
+
 
 function addStockPurchase({ product_id, qty, cost_price, supplier, date, weight, firm_name, location, bill_no, vehicle_number, driver_name, total_cost }) {
   const insertPurchase = db.prepare(`
@@ -1092,6 +1100,7 @@ module.exports = {
   getLowStockProducts,
   getStockPurchases,
   getStockPurchase,
+  getStockPurchaseSuggestions,
   getStockPurchasesCount,
   addStockPurchase,
   deleteStockPurchase,

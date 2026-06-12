@@ -177,6 +177,13 @@
   - Extracted the duplicate definitions of `getModulus` and `applyRounding` from [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx) and [`Ledger.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Ledger.jsx) and relocated them into [`formatters.js`](file:///home/anas/Development/Projects/wholesale-personal/src/lib/formatters.js) as common exports.
   - Updated [`CustomerDetail.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/CustomerDetail.jsx) and [`Ledger.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/Ledger.jsx) to import these functions from the shared utility module.
 
+## Stock Purchase Suggestions (Autocomplete)
+
+- **Added database queries**: Added `getStockPurchaseSuggestions` in [`db.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/db.js) to retrieve unique, non-empty values for `firm_name`, `supplier`, and `location` columns in the local SQLite table.
+- **Registered new IPC handler**: Registered `stock-purchases:suggestions` handler in [`ipc.js`](file:///home/anas/Development/Projects/wholesale-personal/electron/ipc.js) to query the database helper.
+- **Created a reusable SuggestionInput component**: Built [`SuggestionInput.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/components/SuggestionInput.jsx) in React. Features substring match filtering (case-insensitive), matches highlighting in bold, full keyboard navigation (up/down arrow keys, Enter to select, Escape/Tab to close), and a click-outside listener to close the dropdown.
+- **Integrated suggestions on Stock Purchase screen**: Updated [`StockPurchase.jsx`](file:///home/anas/Development/Projects/wholesale-personal/src/pages/StockPurchase.jsx) to load suggestions upon component mounting, store them in React state, and swap the input elements for `Firm Name`, `Supplier`, and `Location` with the custom `<SuggestionInput>` component. Suggestions refresh automatically upon successfully recording a new purchase.
+
 
 
 

@@ -40,6 +40,7 @@ function registerIpcHandlers() {
   ipcMain.handle('stock-purchases:get', wrap((_e, id) => db.getStockPurchase(id)))
   ipcMain.handle('stock-purchases:add', wrap((_e, data) => db.addStockPurchase(data)))
   ipcMain.handle('stock-purchases:delete', wrap((_e, id) => db.deleteStockPurchase(id)))
+  ipcMain.handle('stock-purchases:suggestions', wrap(() => db.getStockPurchaseSuggestions()))
 
   // ── Sales ──────────────────────────────────────────────────────
   ipcMain.handle('sales:list', wrap((_e, args) => db.getSales(args)))

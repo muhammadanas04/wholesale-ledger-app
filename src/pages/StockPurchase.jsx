@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import Pagination from '../components/Pagination'
 import Skeleton from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
+import SuggestionInput from '../components/SuggestionInput'
 
 const LIMIT = 10
 
@@ -14,6 +15,7 @@ export default function StockPurchase() {
   const [products, setProducts] = useState([])
   const [form, setForm] = useState({ product_id: '', qty: '', rate: '', total_cost: '', supplier: '', date: new Date().toISOString().slice(0, 10), weight: '', firm_name: '', location: '', bill_no: '', vehicle_number: '', driver_name: '' })
   const [purchases, setPurchases] = useState([])
+  const [suggestions, setSuggestions] = useState({ firmNames: [], suppliers: [], locations: [] })
 
   const handleQtyChange = (val) => {
     setForm(f => ({ ...f, qty: val }))
@@ -72,12 +74,13 @@ export default function StockPurchase() {
       date_from: dateFrom || null,
       date_to: dateTo || null
     }
-    const [prods, data, count, singleProductVal, rateFieldVal] = await Promise.all([
+    const [prods, data, count, singleProductVal, rateFieldVal, suggestionsData] = await Promise.all([
       ipc('products:list', { limit: 1000 }),
       ipc('stock-purchases:list', filters),
       ipc('stock-purchases:count', { date_from: dateFrom || null, date_to: dateTo || null }),
       ipc('meta:get', 'single_product_mode'),
-      ipc('meta:get', 'show_rate_field')
+      ipc('meta:get', 'show_rate_field'),
+      ipc('stock-purchases:suggestions')
     ])
     const isSingleProduct = singleProductVal === 'true'
     setSingleProductMode(isSingleProduct)
@@ -85,6 +88,7 @@ export default function StockPurchase() {
     const productsList = prods || []
     setProducts(productsList)
     setPurchases(data || [])
+    setSuggestions(suggestionsData || { firmNames: [], suppliers: [], locations: [] })
     setTotal(1)
 
     if (isSingleProduct && productsList.length > 0) {
@@ -276,22 +280,25 @@ export default function StockPurchase() {
                 required
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
+              <SuggestionInput
                 placeholder="Firm Name"
                 value={form.firm_name}
-                onChange={(e) => setForm({ ...form, firm_name: e.target.value })}
+                onChange={(val) => setForm({ ...form, firm_name: val })}
+                suggestions={suggestions.firmNames}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
+              <SuggestionInput
                 placeholder="Supplier"
                 value={form.supplier}
-                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+                onChange={(val) => setForm({ ...form, supplier: val })}
+                suggestions={suggestions.suppliers}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
+              <SuggestionInput
                 placeholder="Location"
                 value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                onChange={(val) => setForm({ ...form, location: val })}
+                suggestions={suggestions.locations}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <input
