@@ -98,3 +98,48 @@ CREATE TABLE IF NOT EXISTS _meta (
   value TEXT,
   updated_at TEXT
 );
+
+-- ── Delivery Module Tables ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS drivers (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL UNIQUE,
+  name TEXT,
+  otp TEXT,
+  otp_used INTEGER DEFAULT 0,
+  active INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  synced INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS deliveries (
+  id TEXT PRIMARY KEY,
+  driver_id TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  synced INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS delivery_items (
+  id TEXT PRIMARY KEY,
+  delivery_id TEXT NOT NULL,
+  address TEXT NOT NULL,
+  stock_amount TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  customer_id TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  synced INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS driver_locations (
+  id TEXT PRIMARY KEY,
+  driver_id TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  recorded_at TEXT NOT NULL
+);
