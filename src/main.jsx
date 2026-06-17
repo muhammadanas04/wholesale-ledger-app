@@ -15,6 +15,7 @@ import Payments from './pages/Payments'
 import Ledger from './pages/Ledger'
 import Settings from './pages/Settings'
 import OtherExpenses from './pages/OtherExpenses'
+import TmpRecords from './pages/TmpRecords'
 import { ipc } from './lib/ipc'
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
           case 'w': navigate('/payments'); break
           case 'l': navigate('/ledger'); break
           case 'o': navigate('/other-expenses'); break
+          case 'm': navigate('/tmp-records'); break
           case 'r': navigate('/'); break
           case 's': navigate('/settings'); break
         }
@@ -86,6 +88,7 @@ function App() {
             <Route path="/ledger" element={<Ledger />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/other-expenses" element={<OtherExpenses />} />
+            <Route path="/tmp-records" element={<TmpRecords />} />
           </Routes>
         </main>
       </div>

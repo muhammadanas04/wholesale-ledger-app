@@ -143,3 +143,22 @@ CREATE TABLE IF NOT EXISTS driver_locations (
   longitude REAL NOT NULL,
   recorded_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS tmp_records (
+  id TEXT PRIMARY KEY,              -- UUID (generated client-side)
+  type TEXT NOT NULL,                -- 'sale' | 'payment' | 'other'
+  customer_id TEXT,                  -- Optional FK to customers.id (for lookups)
+  customer_name TEXT,                -- Denormalized customer name for display
+  customer_phone TEXT,               -- Denormalized phone for SMS sending
+  qty REAL,                          -- Sale only: quantity of goods
+  weight REAL,                       -- Sale only: weight in kg
+  rate REAL,                         -- Sale only: auto-calculated (total_value / weight)
+  discount INTEGER DEFAULT 0,        -- Sale/Payment: discount amount in paise
+  total_value INTEGER,               -- Sale/Payment: total value in paise
+  amount INTEGER,                    -- Other expenses: amount in paise
+  reason TEXT,                       -- Other expenses: free-text reason
+  date TEXT NOT NULL,                -- YYYY-MM-DD (user-assigned date)
+  created_at TEXT NOT NULL,          -- ISO 8601 (auto-set on creation)
+  updated_at TEXT NOT NULL,          -- ISO 8601 (auto-set on creation/update)
+  synced INTEGER DEFAULT 0           -- 0 = unsynced, 1 = synced
+);

@@ -11,7 +11,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Receipt
+  Receipt,
+  Clock
 } from 'lucide-react'
 import { ipc } from '../lib/ipc'
 
@@ -24,6 +25,7 @@ const navItems = [
   { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },
   { to: '/other-expenses', label: 'Other Expenses', icon: Receipt },
+  { to: '/tmp-records', label: 'Tmp Records', icon: Clock },
 ]
 
 export default function Sidebar() {

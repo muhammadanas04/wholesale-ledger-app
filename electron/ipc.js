@@ -68,6 +68,10 @@ function registerIpcHandlers() {
   ipcMain.handle('other-expenses:add', wrap((_e, data) => db.addOtherExpense(data)))
   ipcMain.handle('other-expenses:delete', wrap((_e, id) => db.deleteOtherExpense(id)))
 
+  // ── Tmp Records ────────────────────────────────────────────────
+  ipcMain.handle('tmp-records:list', wrap((_e, args) => db.getTmpRecords(args)))
+  ipcMain.handle('tmp-records:count', wrap((_e, args) => db.getTmpRecordsCount(args)))
+
   // ── Reports ────────────────────────────────────────────────────
   ipcMain.handle('reports:sales-range', wrap((_e, startDate, endDate) => db.getSalesInRange(startDate, endDate)))
   ipcMain.handle('reports:top-products', wrap((_e, startDate, endDate) => db.getTopProducts(startDate, endDate)))

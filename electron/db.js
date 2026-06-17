@@ -4,7 +4,7 @@ const { app } = require('electron')
 
 let db
 
-const SCHEMA_VERSION = 9
+const SCHEMA_VERSION = 10
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -218,6 +218,33 @@ function migrate() {
       `)
     } catch (e) {
       console.error('Migration to version 9 failed:', e)
+    }
+  }
+
+  if (version < 10) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tmp_records (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          customer_id TEXT,
+          customer_name TEXT,
+          customer_phone TEXT,
+          qty REAL,
+          weight REAL,
+          rate REAL,
+          discount INTEGER DEFAULT 0,
+          total_value INTEGER,
+          amount INTEGER,
+          reason TEXT,
+          date TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 10 failed:', e)
     }
   }
 
@@ -1081,6 +1108,62 @@ function deleteOtherExpense(id) {
   return true
 }
 
+// ── Tmp Records ─────────────────────────────────────────────────
+
+function getTmpRecords({ limit = 50, offset = 0, date_from, date_to, type } = {}) {
+  let sql = `SELECT * FROM tmp_records`
+  const conds = []
+  const params = []
+  
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (type && type !== 'all') {
+    conds.push("type = ?")
+    params.push(type)
+  }
+  
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  sql += " ORDER BY date DESC, created_at DESC LIMIT ? OFFSET ?"
+  params.push(limit, offset)
+  return db.prepare(sql).all(...params)
+}
+
+function getTmpRecordsCount({ date_from, date_to, type } = {}) {
+  let sql = `SELECT COUNT(*) AS count FROM tmp_records`
+  const conds = []
+  const params = []
+  
+  if (date_from) {
+    conds.push("date >= ?")
+    params.push(date_from)
+  }
+  if (date_to) {
+    conds.push("date <= ?")
+    params.push(date_to)
+  }
+  if (type && type !== 'all') {
+    conds.push("type = ?")
+    params.push(type)
+  }
+  
+  if (conds.length > 0) {
+    sql += " WHERE " + conds.join(" AND ")
+  }
+  return db.prepare(sql).get(...params).count
+}
+
+function cleanupOldTmpRecords() {
+  db.prepare("DELETE FROM tmp_records WHERE date < date('now', '-15 days')").run()
+}
+
 module.exports = {
   initDatabase,
   getDatabase,
@@ -1129,5 +1212,8 @@ module.exports = {
   getOtherExpensesCount,
   addOtherExpense,
   deleteOtherExpense,
+  getTmpRecords,
+  getTmpRecordsCount,
+  cleanupOldTmpRecords,
 }
 

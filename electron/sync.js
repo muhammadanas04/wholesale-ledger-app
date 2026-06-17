@@ -65,7 +65,7 @@ async function runSyncCycle() {
       }
     }
 
-    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
+    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
 
     db.transaction(() => {
       for (const table of tables) {
@@ -145,6 +145,13 @@ async function runSyncCycle() {
           db.prepare(`UPDATE deleted_log SET synced = 1 WHERE id IN (${placeholders})`).run(...pendingDeleteIds)
         }
       })()
+    }
+
+    // Cleanup expired tmp_records from local SQLite
+    try {
+      db.prepare("DELETE FROM tmp_records WHERE date < date('now', '-15 days')").run()
+    } catch (e) {
+      console.error('tmp_records cleanup error:', e)
     }
 
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)

@@ -23,8 +23,17 @@ export default {
       const authError = checkAdminAuth()
       if (authError) return authError
 
+      // Cleanup tmp_records older than 15 days from D1
+      try {
+        await env.DB.prepare(
+          "DELETE FROM tmp_records WHERE date < date('now', '-15 days')"
+        ).run();
+      } catch (e) {
+        console.error('tmp_records D1 cleanup error:', e);
+      }
+
       const since = url.searchParams.get('since') || '1970-01-01 00:00:00'
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
       const results = {}
 
       for (const table of tables) {
@@ -64,7 +73,7 @@ export default {
       if (authError) return authError
 
       const data = await request.json()
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
 
       try {
         for (const table of tables) {
