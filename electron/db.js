@@ -711,10 +711,13 @@ function updateSale(saleId, { customer_id, date, notes, items, discount = 0, tot
     WHERE id = ?
   `)
 
+  const logDelete = db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)')
+
   const transaction = db.transaction(() => {
     // 1. Restore stock levels for old items
     for (const oldItem of oldSale.items) {
       restoreStock.run(oldItem.qty, oldItem.product_id)
+      logDelete.run('sale_items', oldItem.id)
     }
 
     // 2. Delete old items

@@ -67,32 +67,37 @@ async function runSyncCycle() {
 
     const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
 
-    db.transaction(() => {
-      for (const table of tables) {
-        const rows = remoteData[table] || []
-        for (const row of rows) {
-          // Exclude 'synced' — it's a local-only tracking field
-          const columns = Object.keys(row).filter(k => k !== 'synced')
-          const placeholders = columns.map(() => '?').join(', ')
-          const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
-          
-          db.prepare(`
-            INSERT INTO ${table} (${columns.join(', ')})
-            VALUES (${placeholders})
-            ON CONFLICT(id) DO UPDATE SET ${updates}
-            WHERE EXCLUDED.updated_at > ${table}.updated_at
-          `).run(...columns.map(c => row[c]))
-        }
-        // Mark pulled records as synced so they aren't re-pushed
-        if (rows.length > 0) {
-          const ids = rows.map(r => r.id).filter(id => id != null)
-          if (ids.length > 0) {
-            const placeholders = ids.map(() => '?').join(', ')
-            db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+    db.pragma('foreign_keys = OFF')
+    try {
+      db.transaction(() => {
+        for (const table of tables) {
+          const rows = remoteData[table] || []
+          for (const row of rows) {
+            // Exclude 'synced' — it's a local-only tracking field
+            const columns = Object.keys(row).filter(k => k !== 'synced')
+            const placeholders = columns.map(() => '?').join(', ')
+            const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
+            
+            db.prepare(`
+              INSERT INTO ${table} (${columns.join(', ')})
+              VALUES (${placeholders})
+              ON CONFLICT(id) DO UPDATE SET ${updates}
+              WHERE EXCLUDED.updated_at > ${table}.updated_at
+            `).run(...columns.map(c => row[c]))
+          }
+          // Mark pulled records as synced so they aren't re-pushed
+          if (rows.length > 0) {
+            const ids = rows.map(r => r.id).filter(id => id != null)
+            if (ids.length > 0) {
+              const placeholders = ids.map(() => '?').join(', ')
+              db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+            }
           }
         }
-      }
-    })()
+      })()
+    } finally {
+      db.pragma('foreign_keys = ON')
+    }
 
     // ── 2. PUSH ──────────────────────────────────────────────────
     const pushData = {}
