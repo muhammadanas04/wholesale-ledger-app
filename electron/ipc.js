@@ -23,6 +23,7 @@ function registerIpcHandlers() {
   ipcMain.handle('customers:get', wrap((_e, id) => db.getCustomer(id)))
   ipcMain.handle('customers:add', wrap((_e, data) => db.addCustomer(data)))
   ipcMain.handle('customers:update', wrap((_e, id, data) => db.updateCustomer(id, data)))
+  ipcMain.handle('customers:delete', wrap((_e, id) => db.deleteCustomer(id)))
   ipcMain.handle('customers:search', wrap((_e, query, args) => db.searchCustomers(query, args)))
 
   // ── Products ───────────────────────────────────────────────────

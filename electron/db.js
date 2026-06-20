@@ -326,6 +326,57 @@ function recalculateBalance(customerId) {
   return balance
 }
 
+function deleteCustomer(id) {
+  const customer = getCustomer(id)
+  if (!customer) return false
+
+  const sales = db.prepare('SELECT id FROM sales WHERE customer_id = ?').all(id)
+  const payments = db.prepare('SELECT id FROM payments WHERE customer_id = ?').all(id)
+
+  const updateStock = db.prepare(`
+    UPDATE products
+    SET current_stock = current_stock + ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+
+  const deleteSaleItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?')
+  const deleteSaleStmt = db.prepare('DELETE FROM sales WHERE id = ?')
+  const deletePaymentStmt = db.prepare('DELETE FROM payments WHERE id = ?')
+  const deleteTmpRecords = db.prepare('DELETE FROM tmp_records WHERE customer_id = ?')
+  const deleteCustomerStmt = db.prepare('DELETE FROM customers WHERE id = ?')
+  const logDelete = db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)')
+
+  const transaction = db.transaction(() => {
+    // 1. Revert stock and delete sales/sale_items
+    for (const sale of sales) {
+      const items = db.prepare('SELECT id, qty, product_id FROM sale_items WHERE sale_id = ?').all(sale.id)
+      for (const item of items) {
+        updateStock.run(item.qty, item.product_id)
+        logDelete.run('sale_items', item.id)
+      }
+      deleteSaleItems.run(sale.id)
+      deleteSaleStmt.run(sale.id)
+      logDelete.run('sales', sale.id)
+    }
+
+    // 2. Delete payments
+    for (const payment of payments) {
+      deletePaymentStmt.run(payment.id)
+      logDelete.run('payments', payment.id)
+    }
+
+    // 3. Delete tmp records
+    deleteTmpRecords.run(id)
+
+    // 4. Delete customer
+    deleteCustomerStmt.run(id)
+    logDelete.run('customers', id)
+  })
+
+  transaction()
+  return true
+}
+
 // ── Products ───────────────────────────────────────────────────────
 
 function getProducts({ limit = 50, offset = 0, sortBy = 'name', order = 'ASC' } = {}) {
@@ -1173,6 +1224,7 @@ module.exports = {
   getCustomer,
   addCustomer,
   updateCustomer,
+  deleteCustomer,
   searchCustomers,
   recalculateBalance,
   getProducts,

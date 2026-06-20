@@ -115,17 +115,20 @@ export default {
         }
       }
       const token = authHeader.substring(7)
-      
-      let payload = null
-      if (env.JWT_SECRET) {
-        payload = await verifyJWT(token, env.JWT_SECRET)
+
+      // Driver JWTs MUST be verified against a dedicated JWT_SECRET — never the
+      // admin SYNC_SECRET / SYNC_KEY, which belong to a separate trust domain.
+      // Reusing the admin secret would let anyone holding it forge a valid
+      // driver token. If JWT_SECRET is unset, fail closed (no silent fallback).
+      if (!env.JWT_SECRET) {
+        return {
+          errorResponse: new Response(JSON.stringify({ ok: false, error: 'Server misconfigured — JWT_SECRET not set' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
       }
-      if (!payload && env.SYNC_SECRET) {
-        payload = await verifyJWT(token, env.SYNC_SECRET)
-      }
-      if (!payload && env.SYNC_KEY) {
-        payload = await verifyJWT(token, env.SYNC_KEY)
-      }
+      const payload = await verifyJWT(token, env.JWT_SECRET)
 
       if (!payload) {
         return {
@@ -379,13 +382,22 @@ export default {
           WHERE id = ?
         `).bind(new Date().toISOString(), driver.id).run()
 
-        // Generate custom JWT token for authentication (valid for 30 days)
+        // Generate custom JWT token for authentication (valid for 30 days).
+        // Driver tokens are signed with JWT_SECRET only — distinct from the
+        // admin SYNC_SECRET. Refuse to issue if JWT_SECRET is unset so we never
+        // silently fall back to the admin secret.
+        if (!env.JWT_SECRET) {
+          return new Response(JSON.stringify({ ok: false, error: 'Server misconfigured — JWT_SECRET not set' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
         const tokenPayload = {
           driverId: driver.id,
           phone: driver.phone,
           exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
         }
-        const token = await signJWT(tokenPayload, env.JWT_SECRET || SECRET)
+        const token = await signJWT(tokenPayload, env.JWT_SECRET)
 
         return new Response(
           JSON.stringify({
@@ -462,6 +474,22 @@ export default {
         const { latitude, longitude } = await request.json()
         if (latitude === undefined || longitude === undefined) {
           return new Response(JSON.stringify({ ok: false, error: 'Missing required fields' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Reject non-numeric or out-of-range coordinates rather than persisting
+        // junk (e.g. null, string, or a stale (0,0) GPS lock) to driver_locations.
+        if (
+          typeof latitude !== 'number' ||
+          typeof longitude !== 'number' ||
+          Number.isNaN(latitude) ||
+          Number.isNaN(longitude) ||
+          latitude < -90 || latitude > 90 ||
+          longitude < -180 || longitude > 180
+        ) {
+          return new Response(JSON.stringify({ ok: false, error: 'Invalid coordinates' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           })

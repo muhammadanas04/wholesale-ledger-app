@@ -4,6 +4,18 @@ compatibility_date = "2026-01-01"
 
 [vars]
 
+# Secrets (set with `wrangler secret put <NAME>` — never commit these here):
+#   SYNC_SECRET   Admin bearer token. Authorises /pull, /push, /pull/delivery,
+#                 /push/delivery, /driver/locations. Distinct from JWT_SECRET.
+#   JWT_SECRET    Dedicated HS256 secret for signing/verifying driver JWTs.
+#                 MUST be set — the worker refuses to issue or verify driver
+#                 tokens without it (no fallback to SYNC_SECRET).
+#   B2_APPLICATION_KEY_ID   Backblaze B2 key ID for receipt image storage.
+#   B2_APPLICATION_KEY      Backblaze B2 application key.
+#   B2_BUCKET_ID            B2 bucket ID.
+#   B2_BUCKET_NAME          B2 bucket name.
+# (SYNC_KEY is a legacy alias of SYNC_SECRET and is optional.)
+
 [[d1_databases]]
 binding = "DB"
 database_name = "salim-traders-db"

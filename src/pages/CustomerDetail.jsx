@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
 import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer, Pencil } from 'lucide-react'
 import { formatCurrency, formatDate, formatPhone, applyRounding } from '../lib/formatters'
@@ -338,6 +338,7 @@ function BillInvoice({
 
 export default function CustomerDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [customer, setCustomer] = useState(null)
   const [sales, setSales] = useState([])
   const [payments, setPayments] = useState([])
@@ -357,6 +358,7 @@ export default function CustomerDetail() {
 
   // Confirm dialog and view bill states
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleteCustomerConfirmOpen, setDeleteCustomerConfirmOpen] = useState(false)
   const [deleteSaleId, setDeleteSaleId] = useState(null)
   const [activeBill, setActiveBill] = useState(null)
   const [selectedSaleIds, setSelectedSaleIds] = useState([])
@@ -452,6 +454,13 @@ export default function CustomerDetail() {
     toast.success('Sale deleted')
   }
 
+  async function handleDeleteCustomer() {
+    await ipc('customers:delete', customer.id)
+    setDeleteCustomerConfirmOpen(false)
+    toast.success('Customer deleted')
+    navigate('/customers')
+  }
+
   async function handleDownloadPDF() {
     await ipc('app:print-to-pdf', `Ledger_${customer.name.replace(/\s+/g, '_')}`)
   }
@@ -543,12 +552,20 @@ export default function CustomerDetail() {
           <Link to="/customers" className="flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back to Customers
           </Link>
-          <button
-            onClick={handleDownloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
-          >
-            <Download className="w-4 h-4" /> Download PDF
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setDeleteCustomerConfirmOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-all shadow-sm"
+            >
+              <Trash2 className="w-4 h-4" /> Delete Customer
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow-md"
+            >
+              <Download className="w-4 h-4" /> Download PDF
+            </button>
+          </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
@@ -758,6 +775,15 @@ export default function CustomerDetail() {
           onConfirm={handleDeleteSale}
           onCancel={() => setConfirmOpen(false)}
           confirmText="Delete Sale"
+        />
+
+        <ConfirmDialog
+          isOpen={deleteCustomerConfirmOpen}
+          title="Delete Customer?"
+          message="This will permanently delete this customer and ALL of their sales, payments, and ledger records. Stock will be returned for any associated sales. This action cannot be undone. Are you sure?"
+          onConfirm={handleDeleteCustomer}
+          onCancel={() => setDeleteCustomerConfirmOpen(false)}
+          confirmText="Delete Customer"
         />
       </div>
 

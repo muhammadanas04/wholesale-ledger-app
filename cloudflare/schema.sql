@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category    TEXT NOT NULL,       -- 'petrol_diesel' | 'repair' | 'defective_item' | 'other'
   amount      INTEGER NOT NULL,    -- paise for price categories, raw count for defective_item
   note        TEXT,
-  image_url   TEXT NOT NULL,       -- Firebase Storage URL
+  image_url   TEXT NOT NULL,       -- B2 receipt URL served via the Worker /receipt proxy
   created_at  TEXT NOT NULL,
   FOREIGN KEY (driver_id) REFERENCES drivers(id)
 );
@@ -187,4 +187,5 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE INDEX IF NOT EXISTS idx_expenses_driver ON expenses(driver_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_items_delivery ON delivery_items(delivery_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_driver ON deliveries(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_locations_driver ON driver_locations(driver_id);
 
