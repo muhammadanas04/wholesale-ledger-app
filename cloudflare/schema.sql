@@ -162,3 +162,30 @@ CREATE TABLE IF NOT EXISTS tmp_records (
   updated_at TEXT NOT NULL,          -- ISO 8601 (auto-set on creation/update)
   synced INTEGER DEFAULT 0           -- 0 = unsynced, 1 = synced
 );
+
+-- Alter delivery_items table to include structured fields for the driver app
+-- (In SQLite D1 initialization, we can define them directly or run migrations)
+-- To keep schema.sql as the single source of truth for fresh databases:
+ALTER TABLE delivery_items ADD COLUMN qty INTEGER DEFAULT 0;
+ALTER TABLE delivery_items ADD COLUMN weight REAL;
+ALTER TABLE delivery_items ADD COLUMN total_price INTEGER;
+ALTER TABLE delivery_items ADD COLUMN customer_name TEXT;
+ALTER TABLE delivery_items ADD COLUMN customer_phone TEXT;
+
+-- New table: expenses for driver reporting
+CREATE TABLE IF NOT EXISTS expenses (
+  id          TEXT PRIMARY KEY,
+  driver_id   TEXT NOT NULL,
+  category    TEXT NOT NULL,       -- 'petrol_diesel' | 'repair' | 'defective_item' | 'other'
+  amount      INTEGER NOT NULL,    -- paise for price categories, raw count for defective_item
+  note        TEXT,
+  image_url   TEXT NOT NULL,       -- Firebase Storage URL
+  created_at  TEXT NOT NULL,
+  FOREIGN KEY (driver_id) REFERENCES drivers(id)
+);
+
+-- Database indexes for optimized driver queries
+CREATE INDEX IF NOT EXISTS idx_expenses_driver ON expenses(driver_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_items_delivery ON delivery_items(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_driver ON deliveries(driver_id);
+

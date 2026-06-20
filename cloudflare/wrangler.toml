@@ -3,7 +3,6 @@ main = "worker.js"
 compatibility_date = "2026-01-01"
 
 [vars]
-SYNC_SECRET = "MjE1NmY3OTctODZiZi00MzllLWIzYTMtOTYzZDAxNzU1ZDRlCg"
 
 [[d1_databases]]
 binding = "DB"

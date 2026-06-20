@@ -1,11 +1,96 @@
+// ── Base64Url helper functions for JWT ──
+function base64UrlEncode(str) {
+  return btoa(str)
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function base64UrlDecode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) {
+    str += '=';
+  }
+  return atob(str);
+}
+
+// ── HS256 JWT sign helper using Web Crypto ──
+async function signJWT(payload, secret) {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const textToSign = `${encodedHeader}.${encodedPayload}`;
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    enc.encode(textToSign)
+  );
+
+  const encodedSignature = base64UrlEncode(
+    String.fromCharCode(...new Uint8Array(signature))
+  );
+
+  return `${textToSign}.${encodedSignature}`;
+}
+
+// ── HS256 JWT verify helper using Web Crypto ──
+async function verifyJWT(token, secret) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const [encodedHeader, encodedPayload, encodedSignature] = parts;
+    const textToSign = `${encodedHeader}.${encodedPayload}`;
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    const sigStr = base64UrlDecode(encodedSignature);
+    const sigBuf = new Uint8Array(sigStr.split('').map(c => c.charCodeAt(0)));
+
+    const isValid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      sigBuf,
+      enc.encode(textToSign)
+    );
+
+    if (!isValid) return null;
+
+    const payload = JSON.parse(base64UrlDecode(encodedPayload));
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const auth = request.headers.get('Authorization')
-    const SECRET = env.SYNC_SECRET
+    const SECRET = env.SYNC_KEY
 
     if (!SECRET) {
-      return new Response('Server misconfigured — SYNC_SECRET not set', { status: 500 })
+      return new Response('Server misconfigured — SYNC_KEY not set', { status: 500 })
     }
 
     // Helper to check admin authorization
@@ -14,6 +99,30 @@ export default {
         return new Response('Unauthorized', { status: 401 })
       }
       return null
+    }
+
+    // Helper to check driver authorization (JWT Bearer token)
+    const checkDriverAuth = async () => {
+      const authHeader = request.headers.get('Authorization')
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return {
+          errorResponse: new Response(JSON.stringify({ ok: false, error: 'Unauthorized: Missing or invalid token' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+      }
+      const token = authHeader.substring(7)
+      const payload = await verifyJWT(token, env.JWT_SECRET || SECRET)
+      if (!payload) {
+        return {
+          errorResponse: new Response(JSON.stringify({ ok: false, error: 'Unauthorized: Invalid or expired token' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+      }
+      return { driverId: payload.driverId }
     }
 
     // ── ADMIN ROUTES (Require SYNC_SECRET) ──────────────────────────────────
@@ -48,7 +157,7 @@ export default {
       let roundingRules = null
       let roundingRulesUpdatedAt = null
       try {
-        const rulesRow = await env.DB.prepare("SELECT value, updated_at FROM _meta WHERE key = 'rounding_rules'").get()
+        const rulesRow = await env.DB.prepare("SELECT value, updated_at FROM _meta WHERE key = 'rounding_rules'").first()
         if (rulesRow) {
           roundingRules = rulesRow.value
           roundingRulesUpdatedAt = rulesRow.updated_at
@@ -212,9 +321,9 @@ export default {
       }
     }
 
-    // ── DRIVER APP ROUTES (Do NOT require SYNC_SECRET) ──────────────────────
+    // ── PUBLIC DRIVER ROUTES ──────────────────────────────────────────────────
 
-    // 6. POST /driver/auth (Driver OTP Verification)
+    // 6. POST /driver/auth (Driver OTP Verification -> Returns JWT)
     if (request.method === 'POST' && url.pathname === '/driver/auth') {
       try {
         const { phone, otp } = await request.json()
@@ -227,7 +336,7 @@ export default {
 
         const driver = await env.DB.prepare(`
           SELECT * FROM drivers WHERE phone = ? AND active = 1
-        `).bind(phone).get()
+        `).bind(phone).first()
 
         if (!driver) {
           return new Response(JSON.stringify({ ok: false, error: 'Driver account not found or inactive' }), {
@@ -257,11 +366,20 @@ export default {
           WHERE id = ?
         `).bind(new Date().toISOString(), driver.id).run()
 
+        // Generate custom JWT token for authentication (valid for 30 days)
+        const tokenPayload = {
+          driverId: driver.id,
+          phone: driver.phone,
+          exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+        }
+        const token = await signJWT(tokenPayload, env.JWT_SECRET || SECRET)
+
         return new Response(
           JSON.stringify({
             ok: true,
             driver_id: driver.id,
             name: driver.name,
+            token: token
           }),
           {
             headers: { 'Content-Type': 'application/json' },
@@ -275,11 +393,61 @@ export default {
       }
     }
 
-    // 7. POST /driver/location (Driver logs location)
+    // 7. GET /receipt/:filename (Proxy-serving private Backblaze B2 downloads)
+    const matchReceiptView = url.pathname.match(/^\/receipt\/([^\/]+)$/)
+    if (request.method === 'GET' && matchReceiptView) {
+      try {
+        const filename = matchReceiptView[1]
+
+        if (!env.B2_APPLICATION_KEY_ID || !env.B2_APPLICATION_KEY || !env.B2_BUCKET_NAME) {
+          return new Response('B2 Storage not configured on server', { status: 500 })
+        }
+
+        // 1. Authorize Account in Backblaze B2
+        const b2AuthHeaders = new Headers()
+        b2AuthHeaders.set('Authorization', 'Basic ' + btoa(env.B2_APPLICATION_KEY_ID + ':' + env.B2_APPLICATION_KEY))
+        const authRes = await fetch('https://api.backblazeb2.com/b2api/v2/b2_authorize_account', {
+          headers: b2AuthHeaders
+        })
+        if (!authRes.ok) {
+          return new Response('Failed to authorize storage provider', { status: 500 })
+        }
+        const authData = await authRes.json()
+        const { downloadUrl, authorizationToken } = authData
+
+        // 2. Fetch the file securely from private bucket
+        const fileRes = await fetch(`${downloadUrl}/file/${env.B2_BUCKET_NAME}/${filename}`, {
+          headers: { 'Authorization': authorizationToken }
+        })
+
+        if (!fileRes.ok) {
+          return new Response('Receipt photo not found', { status: 404 })
+        }
+
+        // 3. Return stream to the user
+        return new Response(fileRes.body, {
+          status: 200,
+          headers: {
+            'Content-Type': fileRes.headers.get('Content-Type') || 'image/jpeg',
+            'Cache-Control': 'public, max-age=31536000',
+            'Access-Control-Allow-Origin': '*'
+          }
+        })
+      } catch (err) {
+        return new Response(err.message, { status: 500 })
+      }
+    }
+
+    // ── SECURE DRIVER ROUTES (Require Driver JWT) ─────────────────────────────
+
+    // 8. POST /driver/location (Driver logs location)
     if (request.method === 'POST' && url.pathname === '/driver/location') {
       try {
-        const { driver_id, latitude, longitude } = await request.json()
-        if (!driver_id || latitude === undefined || longitude === undefined) {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const { latitude, longitude } = await request.json()
+        if (latitude === undefined || longitude === undefined) {
           return new Response(JSON.stringify({ ok: false, error: 'Missing required fields' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
@@ -288,7 +456,7 @@ export default {
 
         const driver = await env.DB.prepare(`
           SELECT active FROM drivers WHERE id = ?
-        `).bind(driver_id).get()
+        `).bind(driverId).first()
 
         if (!driver || driver.active !== 1) {
           return new Response(JSON.stringify({ ok: false, error: 'Unauthorized driver' }), {
@@ -297,7 +465,7 @@ export default {
           })
         }
 
-        // Insert or overwrite the latest location per driver ID
+        // Insert or overwrite latest location
         await env.DB.prepare(`
           INSERT INTO driver_locations (id, driver_id, latitude, longitude, recorded_at)
           VALUES (?, ?, ?, ?, ?)
@@ -305,7 +473,7 @@ export default {
             latitude = excluded.latitude,
             longitude = excluded.longitude,
             recorded_at = excluded.recorded_at
-        `).bind(driver_id, driver_id, latitude, longitude, new Date().toISOString()).run()
+        `).bind(driverId, driverId, latitude, longitude, new Date().toISOString()).run()
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { 'Content-Type': 'application/json' },
@@ -318,10 +486,13 @@ export default {
       }
     }
 
-    // 8. PATCH /delivery-item/:id/status (Driver completes a stop)
+    // 9. PATCH /delivery-item/:id/status (Driver completes a stop)
     const matchStatusRoute = url.pathname.match(/^\/delivery-item\/([^\/]+)\/status$/)
     if (request.method === 'PATCH' && matchStatusRoute) {
       try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
         const itemId = matchStatusRoute[1]
         const { status } = await request.json()
         if (!status) {
@@ -331,13 +502,320 @@ export default {
           })
         }
 
+        // Validate item existence & ownership (Issue #7)
+        const item = await env.DB.prepare(`
+          SELECT di.delivery_id, d.driver_id
+          FROM delivery_items di
+          JOIN deliveries d ON di.delivery_id = d.id
+          WHERE di.id = ?
+        `).bind(itemId).first()
+
+        if (!item) {
+          return new Response(JSON.stringify({ ok: false, error: 'Delivery item not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        if (item.driver_id !== driverId) {
+          return new Response(JSON.stringify({ ok: false, error: 'Forbidden: You do not own this delivery item' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const nowStr = new Date().toISOString()
+        const deliveryId = item.delivery_id
+
+        // Update item status
         await env.DB.prepare(`
           UPDATE delivery_items
           SET status = ?, updated_at = ?
           WHERE id = ?
-        `).bind(status, new Date().toISOString(), itemId).run()
+        `).bind(status, nowStr, itemId).run()
+
+        // Check if all items in this delivery batch are done or rejected
+        const { results: pendingItems } = await env.DB.prepare(`
+          SELECT id FROM delivery_items
+          WHERE delivery_id = ? AND status = 'pending'
+        `).bind(deliveryId).all()
+
+        if (pendingItems.length === 0) {
+          await env.DB.prepare(`
+            UPDATE deliveries
+            SET status = 'completed', updated_at = ?
+            WHERE id = ?
+          `).bind(nowStr, deliveryId).run()
+        }
 
         return new Response(JSON.stringify({ ok: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 10. GET /driver/deliveries (Driver pulls their assigned deliveries - Optimized single query)
+    if (request.method === 'GET' && url.pathname === '/driver/deliveries') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        // Fetch deliveries assigned to the driver
+        const { results: deliveries } = await env.DB.prepare(`
+          SELECT * FROM deliveries WHERE driver_id = ? ORDER BY created_at DESC
+        `).bind(driverId).all()
+
+        if (deliveries.length === 0) {
+          return new Response(JSON.stringify({ deliveries: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Fetch all delivery items for the assigned deliveries in ONE single query (Resolves Issue #19)
+        const deliveryIds = deliveries.map(d => d.id)
+        const placeholders = deliveryIds.map(() => '?').join(', ')
+
+        const { results: allItems } = await env.DB.prepare(`
+          SELECT di.*, c.name AS fallback_name, c.phone AS fallback_phone
+          FROM delivery_items di
+          LEFT JOIN customers c ON di.customer_id = c.id
+          WHERE di.delivery_id IN (${placeholders})
+          ORDER BY di.created_at ASC
+        `).bind(...deliveryIds).all()
+
+        // Group items in JS
+        const itemsByDelivery = {}
+        for (const item of allItems) {
+          if (!itemsByDelivery[item.delivery_id]) {
+            itemsByDelivery[item.delivery_id] = []
+          }
+          itemsByDelivery[item.delivery_id].push({
+            ...item,
+            customer_name: item.customer_name || item.fallback_name || 'Unknown Customer',
+            customer_phone: item.customer_phone || item.fallback_phone || '',
+            fallback_name: undefined,
+            fallback_phone: undefined,
+          })
+        }
+
+        const populatedDeliveries = deliveries.map(delivery => ({
+          ...delivery,
+          items: itemsByDelivery[delivery.id] || []
+        }))
+
+        return new Response(JSON.stringify({ deliveries: populatedDeliveries }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 11. PATCH /delivery-item/:id (Driver edits quantity / weight)
+    const matchEditItemRoute = url.pathname.match(/^\/delivery-item\/([^\/]+)$/)
+    if (request.method === 'PATCH' && matchEditItemRoute) {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const itemId = matchEditItemRoute[1]
+        const { qty, weight } = await request.json()
+
+        // Input validations (Issue #7)
+        if (qty !== undefined && (typeof qty !== 'number' || qty <= 0 || !Number.isInteger(qty))) {
+          return new Response(JSON.stringify({ ok: false, error: 'Quantity must be an integer greater than 0' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        if (weight !== undefined && (typeof weight !== 'number' || weight < 0)) {
+          return new Response(JSON.stringify({ ok: false, error: 'Weight must be a positive number' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Validate item existence & ownership (Issue #7)
+        const item = await env.DB.prepare(`
+          SELECT di.id, d.driver_id
+          FROM delivery_items di
+          JOIN deliveries d ON di.delivery_id = d.id
+          WHERE di.id = ?
+        `).bind(itemId).first()
+
+        if (!item) {
+          return new Response(JSON.stringify({ ok: false, error: 'Delivery item not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        if (item.driver_id !== driverId) {
+          return new Response(JSON.stringify({ ok: false, error: 'Forbidden: You do not own this delivery item' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const nowStr = new Date().toISOString()
+        await env.DB.prepare(`
+          UPDATE delivery_items
+          SET qty = ?, weight = ?, updated_at = ?
+          WHERE id = ?
+        `).bind(qty, weight, nowStr, itemId).run()
+
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 12. POST /driver/expense (Driver reports an expense receipt)
+    if (request.method === 'POST' && url.pathname === '/driver/expense') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const { category, amount, note, image_url } = await request.json()
+        if (!category || amount === undefined || !image_url) {
+          return new Response(JSON.stringify({ ok: false, error: 'Missing required fields' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const id = crypto.randomUUID()
+        const nowStr = new Date().toISOString()
+
+        await env.DB.prepare(`
+          INSERT INTO expenses (id, driver_id, category, amount, note, image_url, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, driverId, category, amount, note, image_url, nowStr).run()
+
+        return new Response(JSON.stringify({ ok: true, id }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 13. GET /driver/expenses (Driver pulls their reported expenses - Issue #18)
+    if (request.method === 'GET' && url.pathname === '/driver/expenses') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const { results } = await env.DB.prepare(`
+          SELECT * FROM expenses WHERE driver_id = ? ORDER BY created_at DESC
+        `).bind(driverId).all()
+
+        return new Response(JSON.stringify({ expenses: results }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 14. POST /driver/upload-receipt (Proxies image uploads to private Backblaze B2 bucket)
+    if (request.method === 'POST' && url.pathname === '/driver/upload-receipt') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        if (!env.B2_APPLICATION_KEY_ID || !env.B2_APPLICATION_KEY || !env.B2_BUCKET_ID || !env.B2_BUCKET_NAME) {
+          return new Response(JSON.stringify({ ok: false, error: 'Backblaze B2 is not configured in Worker secrets' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Parse multipart body
+        const formData = await request.formData()
+        const file = formData.get('file')
+        if (!file) {
+          return new Response(JSON.stringify({ ok: false, error: 'No file provided' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const fileBytes = await file.arrayBuffer()
+
+        // 1. Authorize B2 Account
+        const b2AuthHeaders = new Headers()
+        b2AuthHeaders.set('Authorization', 'Basic ' + btoa(env.B2_APPLICATION_KEY_ID + ':' + env.B2_APPLICATION_KEY))
+        const b2AuthRes = await fetch('https://api.backblazeb2.com/b2api/v2/b2_authorize_account', {
+          headers: b2AuthHeaders
+        })
+        if (!b2AuthRes.ok) {
+          return new Response(JSON.stringify({ ok: false, error: 'B2 Auth failed: ' + await b2AuthRes.text() }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        const b2AuthData = await b2AuthRes.json()
+        const { apiUrl, authorizationToken } = b2AuthData
+
+        // 2. Get Upload URL
+        const uploadUrlRes = await fetch(`${apiUrl}/b2api/v2/b2_get_upload_url`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authorizationToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ bucketId: env.B2_BUCKET_ID })
+        })
+        if (!uploadUrlRes.ok) {
+          return new Response(JSON.stringify({ ok: false, error: 'B2 Get Upload URL failed: ' + await uploadUrlRes.text() }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        const uploadUrlData = await uploadUrlRes.json()
+        const { uploadUrl, authorizationToken: uploadAuthToken } = uploadUrlData
+
+        // 3. Upload File bytes
+        const filename = `${crypto.randomUUID()}.jpg`
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': uploadAuthToken,
+            'X-Bz-File-Name': encodeURIComponent(filename),
+            'Content-Type': 'image/jpeg',
+            'X-Bz-Content-Sha1': 'do_not_verify'
+          },
+          body: fileBytes
+        })
+        if (!uploadRes.ok) {
+          return new Response(JSON.stringify({ ok: false, error: 'B2 File Upload failed: ' + await uploadRes.text() }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const publicUrl = `${url.origin}/receipt/${filename}`
+        return new Response(JSON.stringify({ ok: true, url: publicUrl }), {
           headers: { 'Content-Type': 'application/json' },
         })
       } catch (err) {

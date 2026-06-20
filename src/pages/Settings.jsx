@@ -37,6 +37,8 @@ export default function Settings() {
   const [syncKey, setSyncKey] = useState('')
   const [syncSaving, setSyncSaving] = useState(false)
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetSaving, setResetSaving] = useState(false)
 
   // Update state
   const [appVersion, setAppVersion] = useState('')
@@ -234,6 +236,25 @@ export default function Settings() {
       setSyncUrl(null)
       setShowDisconnectConfirm(false)
       toast.success('Sync disconnected')
+    }
+  }
+
+  async function handleClearDatabase() {
+    setResetSaving(true)
+    try {
+      const success = await ipc('db:clear')
+      if (success) {
+        toast.success('Database cleared successfully! Restarting...')
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      } else {
+        toast.error('Failed to clear database')
+        setResetSaving(false)
+      }
+    } catch (err) {
+      toast.error('Error: ' + (err.message || err))
+      setResetSaving(false)
     }
   }
 
@@ -791,6 +812,56 @@ export default function Settings() {
 
             {updateStatus === 'idle' && (
               <p className="text-xs text-gray-400">Click "Check for Updates" to see if a newer version is available.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="max-w-2xl">
+        <div className="bg-white border border-red-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-red-100 flex items-center gap-2 font-bold text-red-800 bg-red-50/50">
+            <Trash2 className="w-4 h-4 text-red-600" /> Danger Zone
+          </div>
+          <div className="p-5 space-y-4">
+            <div>
+              <p className="text-sm font-bold text-gray-800">Reset Local Database</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Permanently delete all local customers, products, sales, payments, expenses, and configuration data.
+                This allows you to change the cloud sync secret key and start fresh.
+              </p>
+            </div>
+
+            {showResetConfirm ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
+                <p className="text-sm font-semibold text-red-800 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                  Are you absolutely sure? This action is permanent and cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleClearDatabase}
+                    disabled={resetSaving}
+                    className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {resetSaving ? 'Clearing...' : 'Yes, Wipe & Clear Data'}
+                  </button>
+                  <button
+                    onClick={() => setShowResetConfirm(false)}
+                    disabled={resetSaving}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Clear Local Database
+              </button>
             )}
           </div>
         </div>

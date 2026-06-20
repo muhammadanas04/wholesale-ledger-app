@@ -126,6 +126,12 @@ function registerIpcHandlers() {
     return { configured: false }
   }))
 
+  ipcMain.handle('db:clear', wrap(() => {
+    sync.stopSync()
+    db.clearDatabase()
+    return true
+  }))
+
   // ── Meta / Settings ────────────────────────────────────────────
   ipcMain.handle('meta:get', wrap((_e, key) => db.getMeta(key)))
   ipcMain.handle('meta:set', wrap((_e, key, value) => db.setMeta(key, value)))

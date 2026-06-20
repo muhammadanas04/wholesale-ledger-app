@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3')
 const path = require('path')
 const { app } = require('electron')
+const fs = require('fs')
 
 let db
 
@@ -1215,5 +1216,40 @@ module.exports = {
   getTmpRecords,
   getTmpRecordsCount,
   cleanupOldTmpRecords,
+  clearDatabase,
+}
+
+function clearDatabase() {
+  if (db) {
+    try {
+      db.close()
+    } catch (e) {
+      console.error('Error closing database:', e)
+    }
+    db = null
+  }
+
+  const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
+  const walPath = dbPath + '-wal'
+  const shmPath = dbPath + '-shm'
+
+  try {
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
+  } catch (e) {
+    console.error('Failed to delete db file:', e)
+  }
+  try {
+    if (fs.existsSync(walPath)) fs.unlinkSync(walPath)
+  } catch (e) {
+    console.error('Failed to delete wal file:', e)
+  }
+  try {
+    if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath)
+  } catch (e) {
+    console.error('Failed to delete shm file:', e)
+  }
+
+  initDatabase()
+  return true
 }
 
