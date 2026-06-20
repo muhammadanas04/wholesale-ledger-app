@@ -36,14 +36,14 @@ export default function TmpRecords() {
         ipc('tmp-records:count', { type: type || 'all', date_from: dateFrom || null, date_to: dateTo || null })
       ])
 
-      if (resList.success) {
-        setRecords(resList.data || [])
+      if (resList !== null) {
+        setRecords(resList || [])
       } else {
-        toast.error(resList.error || 'Failed to load temporary records')
+        toast.error('Failed to load temporary records')
       }
 
-      if (resCount.success) {
-        setTotal(resCount.data || 0)
+      if (resCount !== null) {
+        setTotal(resCount || 0)
       }
     } catch (err) {
       console.error(err)
@@ -59,7 +59,7 @@ export default function TmpRecords() {
 
   const handleExportExcel = async () => {
     try {
-      const res = await ipc('tmp-records:list', {
+      const data = await ipc('tmp-records:list', {
         limit: 100000,
         offset: 0,
         type: type || 'all',
@@ -67,11 +67,9 @@ export default function TmpRecords() {
         date_to: dateTo || null
       })
 
-      if (!res.success || !res.data || res.data.length === 0) {
+      if (!data || data.length === 0) {
         return toast.error('No temporary records data to export')
       }
-
-      const data = res.data
       const headers = [
         "ID",
         "Type",

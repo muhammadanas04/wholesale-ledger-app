@@ -87,15 +87,17 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const auth = request.headers.get('Authorization')
-    const SECRET = env.SYNC_KEY
+    const SECRET = env.SYNC_SECRET || env.SYNC_KEY
 
     if (!SECRET) {
-      return new Response('Server misconfigured — SYNC_KEY not set', { status: 500 })
+      return new Response('Server misconfigured — SYNC_SECRET or SYNC_KEY not set', { status: 500 })
     }
 
     // Helper to check admin authorization
     const checkAdminAuth = () => {
-      if (auth !== `Bearer ${SECRET}`) {
+      const matchSecret = env.SYNC_SECRET && auth === `Bearer ${env.SYNC_SECRET}`
+      const matchKey = env.SYNC_KEY && auth === `Bearer ${env.SYNC_KEY}`
+      if (!matchSecret && !matchKey) {
         return new Response('Unauthorized', { status: 401 })
       }
       return null
@@ -113,7 +115,18 @@ export default {
         }
       }
       const token = authHeader.substring(7)
-      const payload = await verifyJWT(token, env.JWT_SECRET || SECRET)
+      
+      let payload = null
+      if (env.JWT_SECRET) {
+        payload = await verifyJWT(token, env.JWT_SECRET)
+      }
+      if (!payload && env.SYNC_SECRET) {
+        payload = await verifyJWT(token, env.SYNC_SECRET)
+      }
+      if (!payload && env.SYNC_KEY) {
+        payload = await verifyJWT(token, env.SYNC_KEY)
+      }
+
       if (!payload) {
         return {
           errorResponse: new Response(JSON.stringify({ ok: false, error: 'Unauthorized: Invalid or expired token' }), {
@@ -544,6 +557,12 @@ export default {
           await env.DB.prepare(`
             UPDATE deliveries
             SET status = 'completed', updated_at = ?
+            WHERE id = ?
+          `).bind(nowStr, deliveryId).run()
+        } else {
+          await env.DB.prepare(`
+            UPDATE deliveries
+            SET status = 'in_progress', updated_at = ?
             WHERE id = ?
           `).bind(nowStr, deliveryId).run()
         }

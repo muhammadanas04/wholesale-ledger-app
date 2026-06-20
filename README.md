@@ -29,13 +29,13 @@ The app works offline by default. If you have configured a Cloudflare D1 sync wo
 - Add environment variable in Cloudflare worker settings:
 
 ```
-SYNC_SECRET=your-secret-key
+SYNC_KEY=your-secret-key
 ```
 
 - Create a base64 encoded string: 
 
 ```
-echo -n "WORKER_URL|SYNC_SECRET" | base64
+echo -n "WORKER_URL|SYNC_KEY" | base64
 ```
 
 The above key is your secret key.

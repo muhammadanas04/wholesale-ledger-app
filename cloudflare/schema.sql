@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS stock_purchases (
   bill_no TEXT,
   vehicle_number TEXT,
   driver_name TEXT,
+  total_cost INTEGER,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   qty REAL NOT NULL,
   unit_price INTEGER NOT NULL,
   weight REAL,
+  total_price INTEGER,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0
@@ -131,6 +133,11 @@ CREATE TABLE IF NOT EXISTS delivery_items (
   status TEXT DEFAULT 'pending',
   customer_id TEXT,
   notes TEXT,
+  qty INTEGER DEFAULT 0,
+  weight REAL,
+  total_price INTEGER,
+  customer_name TEXT,
+  customer_phone TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   synced INTEGER DEFAULT 0
@@ -163,14 +170,6 @@ CREATE TABLE IF NOT EXISTS tmp_records (
   synced INTEGER DEFAULT 0           -- 0 = unsynced, 1 = synced
 );
 
--- Alter delivery_items table to include structured fields for the driver app
--- (In SQLite D1 initialization, we can define them directly or run migrations)
--- To keep schema.sql as the single source of truth for fresh databases:
-ALTER TABLE delivery_items ADD COLUMN qty INTEGER DEFAULT 0;
-ALTER TABLE delivery_items ADD COLUMN weight REAL;
-ALTER TABLE delivery_items ADD COLUMN total_price INTEGER;
-ALTER TABLE delivery_items ADD COLUMN customer_name TEXT;
-ALTER TABLE delivery_items ADD COLUMN customer_phone TEXT;
 
 -- New table: expenses for driver reporting
 CREATE TABLE IF NOT EXISTS expenses (
