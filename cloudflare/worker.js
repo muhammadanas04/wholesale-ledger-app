@@ -538,6 +538,11 @@ export default {
           })
         }
 
+        // Ensure there are no orphaned old rows for this driver (e.g. from before driverId was used as id)
+        await env.DB.prepare(`
+          DELETE FROM driver_locations WHERE driver_id = ? AND id != ?
+        `).bind(driverId, driverId).run()
+
         // Insert or overwrite latest location
         await env.DB.prepare(`
           INSERT INTO driver_locations (id, driver_id, latitude, longitude, recorded_at)
@@ -895,6 +900,78 @@ export default {
 
         const publicUrl = `${url.origin}/receipt/${filename}`
         return new Response(JSON.stringify({ ok: true, url: publicUrl }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 15. GET /driver/customers (Driver pulls list of customers for autocomplete)
+    if (request.method === 'GET' && url.pathname === '/driver/customers') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const { results } = await env.DB.prepare(`
+          SELECT id, name, address FROM customers
+        `).all()
+
+        return new Response(JSON.stringify({ customers: results }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // 16. POST /driver/delivery-items (Driver creates a new delivery item/order)
+    if (request.method === 'POST' && url.pathname === '/driver/delivery-items') {
+      try {
+        const { driverId, errorResponse } = await checkDriverAuth()
+        if (errorResponse) return errorResponse
+
+        const { customer_name, address, qty, weight } = await request.json()
+        
+        if (!customer_name || qty === undefined || weight === undefined) {
+          return new Response(JSON.stringify({ ok: false, error: 'Missing required fields' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        let activeDelivery = await env.DB.prepare(`
+          SELECT id FROM deliveries 
+          WHERE driver_id = ? AND status != 'completed' 
+          ORDER BY created_at DESC LIMIT 1
+        `).bind(driverId).first()
+
+        const nowStr = new Date().toISOString()
+        
+        if (!activeDelivery) {
+          const newDeliveryId = crypto.randomUUID()
+          await env.DB.prepare(`
+            INSERT INTO deliveries (id, driver_id, status, created_at, updated_at)
+            VALUES (?, ?, 'pending', ?, ?)
+          `).bind(newDeliveryId, driverId, nowStr, nowStr).run()
+          activeDelivery = { id: newDeliveryId }
+        }
+
+        const itemId = crypto.randomUUID()
+        const stockAmount = qty.toString() 
+
+        await env.DB.prepare(`
+          INSERT INTO delivery_items (id, delivery_id, customer_name, address, qty, weight, stock_amount, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        `).bind(itemId, activeDelivery.id, customer_name, address || '', qty, weight, stockAmount, nowStr, nowStr).run()
+
+        return new Response(JSON.stringify({ ok: true, id: itemId }), {
           headers: { 'Content-Type': 'application/json' },
         })
       } catch (err) {

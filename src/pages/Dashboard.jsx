@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import DatePicker from '../components/DatePicker'
 import { Link } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
 import { 
@@ -244,31 +245,15 @@ export default function Dashboard() {
           {activePreset === 'custom' && (
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl p-1.5 shadow-sm transition-all duration-300">
               <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-              <input
-                type="date"
+              <DatePicker
                 value={dates.start}
                 onChange={(e) => setDates({ ...dates, start: e.target.value })}
-                onClick={(e) => {
-                  try {
-                    e.target.showPicker()
-                  } catch (err) {
-                    console.error(err)
-                  }
-                }}
                 className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28 cursor-pointer"
               />
               <span className="text-gray-300 text-xs font-medium">to</span>
-              <input
-                type="date"
+              <DatePicker
                 value={dates.end}
                 onChange={(e) => setDates({ ...dates, end: e.target.value })}
-                onClick={(e) => {
-                  try {
-                    e.target.showPicker()
-                  } catch (err) {
-                    console.error(err)
-                  }
-                }}
                 className="text-xs border-none focus:ring-0 font-bold text-gray-700 bg-transparent p-0 w-28 cursor-pointer"
               />
             </div>
@@ -504,9 +489,9 @@ export default function Dashboard() {
                 <Package className="w-4 h-4 text-blue-500" />
                 <h3 className="font-bold text-gray-800 text-sm uppercase">Top Selling Products</h3>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black">
+              <div className="overflow-auto max-h-[calc(100vh-200px)]">
+                <table className="w-full text-sm relative">
+                  <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black shadow-[0_1px_0_0_#e5e7eb]">
                     <tr>
                       <th className="text-left px-5 py-3 border-b border-gray-100">Product Name</th>
                       <th className="text-right px-5 py-3 border-b border-gray-100">Quantity Sold</th>
@@ -547,9 +532,9 @@ export default function Dashboard() {
               <Users className="w-4 h-4 text-orange-500" />
               <h3 className="font-bold text-gray-800 text-sm uppercase">Top Buying Customers</h3>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black">
+            <div className="overflow-auto max-h-[calc(100vh-200px)]">
+              <table className="w-full text-sm relative">
+                <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black shadow-[0_1px_0_0_#e5e7eb]">
                   <tr>
                     <th className="text-left px-5 py-3 border-b border-gray-100">Customer Name</th>
                     <th className="text-right px-5 py-3 border-b border-gray-100">Invoices Filed</th>
@@ -589,9 +574,9 @@ export default function Dashboard() {
               <TrendingUp className="w-4 h-4 text-green-500" />
               <h3 className="font-bold text-gray-800 text-sm uppercase">Stock Movement Log</h3>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black">
+            <div className="overflow-auto max-h-[calc(100vh-200px)]">
+              <table className="w-full text-sm relative">
+                <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 uppercase tracking-widest text-[10px] font-black shadow-[0_1px_0_0_#e5e7eb]">
                   <tr>
                     <th className="text-left px-5 py-3 border-b border-gray-100">Product Name</th>
                     <th className="text-right px-5 py-3 border-b border-gray-100">Quantity Purchased</th>

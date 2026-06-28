@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import DatePicker from '../components/DatePicker'
 import { ipc } from '../lib/ipc'
 import { BookOpen, Download, Trash2, Calendar, Users, RefreshCw, Printer, Pencil } from 'lucide-react'
 import { formatCurrency, formatDate, applyRounding } from '../lib/formatters'
@@ -449,17 +450,9 @@ export default function Ledger() {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date From</label>
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                  <input
-                    type="date"
+                  <DatePicker
                     value={dateFrom}
                     onChange={(e) => handleFilterChange(() => setDateFrom(e.target.value))}
-                    onClick={(e) => {
-                      try {
-                        e.target.showPicker()
-                      } catch (err) {
-                        console.error(err)
-                      }
-                    }}
                     className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm cursor-pointer"
                   />
                 </div>
@@ -469,17 +462,9 @@ export default function Ledger() {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Date To</label>
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                  <input
-                    type="date"
+                  <DatePicker
                     value={dateTo}
                     onChange={(e) => handleFilterChange(() => setDateTo(e.target.value))}
-                    onClick={(e) => {
-                      try {
-                        e.target.showPicker()
-                      } catch (err) {
-                        console.error(err)
-                      }
-                    }}
                     className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm cursor-pointer"
                   />
                 </div>
@@ -530,9 +515,9 @@ export default function Ledger() {
       {/* Ledger Table */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-6 py-4 border-b border-gray-100 font-black text-gray-900 text-sm uppercase tracking-widest no-print">Running Account Log</div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider border-b border-gray-200">
+        <div className="overflow-auto max-h-[calc(100vh-200px)]">
+          <table className="w-full text-sm relative">
+            <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
               <tr>
                 <th className="text-left px-6 py-3.5 w-32">Date</th>
                 <th className="text-left px-6 py-3.5">Customer</th>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import DatePicker from '../components/DatePicker'
 import { ipc } from '../lib/ipc'
 import { Plus, Trash2, ShoppingCart, Download, Calendar } from 'lucide-react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -304,17 +305,9 @@ export default function NewSale() {
               <option value="">Select customer</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <input
-              type="date"
+            <DatePicker
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              onClick={(e) => {
-                try {
-                  e.target.showPicker()
-                } catch (err) {
-                  console.error(err)
-                }
-              }}
               required
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
             />
@@ -569,19 +562,15 @@ export default function NewSale() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-455 shrink-0" />
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter Date:</span>
-            <input
-              type="date"
+            <DatePicker
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
               className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
             />
             <span className="text-xs font-bold text-gray-400">to</span>
-            <input
-              type="date"
+            <DatePicker
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              onClick={(e) => { try { e.target.showPicker(); } catch (err) {} }}
               className="px-2.5 py-1 border border-gray-300 rounded-xl text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold text-slate-800"
             />
             {(dateFrom || dateTo) && (
@@ -595,9 +584,9 @@ export default function NewSale() {
             )}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider border-b border-gray-200">
+        <div className="overflow-auto max-h-[calc(100vh-200px)]">
+          <table className="w-full text-sm relative">
+            <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
               <tr>
                 <th className="text-left px-6 py-3.5 w-32">Date</th>
                 <th className="text-left px-6 py-3.5">Customer</th>

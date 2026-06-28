@@ -629,9 +629,9 @@ export default function CustomerDetail() {
               View in Ledger →
             </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+          <div className="overflow-auto max-h-[calc(100vh-200px)]">
+            <table className="w-full text-sm relative">
+              <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
                 <tr>
                   <th className="w-12 px-6 py-3 text-center no-print">
                     <input
