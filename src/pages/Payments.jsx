@@ -41,7 +41,7 @@ export default function Payments() {
       date_to: dateTo || null
     }
     const [custs, data, count] = await Promise.all([
-      ipc('customers:list', { limit: 1000 }), // Load more for select
+      ipc('customers:list', { limit: 100000 }), // Load more for select
       ipc('payments:list', filters),
       ipc('payments:count', { date_from: dateFrom || null, date_to: dateTo || null })
     ])

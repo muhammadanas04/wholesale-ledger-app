@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import DatePicker from '../components/DatePicker'
+import CustomerSelect from '../components/CustomerSelect'
 import { ipc } from '../lib/ipc'
 import { Plus, Trash2, ShoppingCart, Download, Calendar } from 'lucide-react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
@@ -66,7 +67,7 @@ export default function NewSale() {
   useEffect(() => {
     async function load() {
       const prods = await ipc('products:list', { limit: 1000 }) || []
-      setCustomers(await ipc('customers:list') || [])
+      setCustomers(await ipc('customers:list', { limit: 100000 }) || [])
       setProducts(prods)
       
       const singleProductVal = await ipc('meta:get', 'single_product_mode')
@@ -297,15 +298,13 @@ export default function NewSale() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <select
+            <CustomerSelect
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              required
+              onChange={setCustomerId}
+              customers={customers}
+              required={true}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-            >
-              <option value="">Select customer</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            />
             <DatePicker
               value={date}
               onChange={(e) => setDate(e.target.value)}

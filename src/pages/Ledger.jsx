@@ -183,7 +183,7 @@ export default function Ledger() {
   // Load customers dropdown list
   useEffect(() => {
     async function loadCustomers() {
-      const list = await ipc('customers:list', { limit: 1000 })
+      const list = await ipc('customers:list', { limit: 100000 })
       setCustomers(list || [])
     }
     loadCustomers()

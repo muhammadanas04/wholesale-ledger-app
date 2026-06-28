@@ -134,7 +134,7 @@ export default function Dashboard() {
           ipc('reports:inventory-value'),
           ipc('reports:stock-movements', dates.start, dates.end),
           ipc('products:low-stock'),
-          ipc('customers:list', { limit: 1000 }),
+          ipc('customers:list', { limit: 100000 }),
           ipc('meta:get', 'shop_name'),
           ipc('meta:get', 'single_product_mode'),
           ipc('products:list', { limit: 1 }),
