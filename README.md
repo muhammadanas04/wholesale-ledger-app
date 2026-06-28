@@ -44,4 +44,3 @@ The above key is your secret key.
 
 ## Exporting to PDF
 On the **Reports**, **Ledger**, and **Customer Detail** pages, click the "Download PDF" or "Print Ledger" button to save a clean, professional document for your records or to share with customers.
-
