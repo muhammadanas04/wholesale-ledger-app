@@ -22,10 +22,10 @@ export default function TmpRecords() {
 
   async function load() {
     setLoading(true)
-    const offset = (page - 1) * LIMIT
+    const hasFilter = (type && type !== 'all') || dateFrom || dateTo
     const filters = {
-      limit: LIMIT,
-      offset,
+      limit: hasFilter ? 100000 : 50,
+      offset: 0,
       type: type || 'all',
       date_from: dateFrom || null,
       date_to: dateTo || null
@@ -44,7 +44,7 @@ export default function TmpRecords() {
       }
 
       if (resCount !== null) {
-        setTotal(resCount || 0)
+        setTotal(hasFilter ? resCount : 0)
       }
     } catch (err) {
       console.error(err)

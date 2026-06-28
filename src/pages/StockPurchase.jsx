@@ -69,8 +69,9 @@ export default function StockPurchase() {
 
   async function load() {
     setLoading(true)
+    const hasFilter = dateFrom || dateTo
     const filters = {
-      limit: 100000,
+      limit: hasFilter ? 100000 : 50,
       offset: 0,
       date_from: dateFrom || null,
       date_to: dateTo || null

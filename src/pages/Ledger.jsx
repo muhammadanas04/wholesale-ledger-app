@@ -29,7 +29,7 @@ export default function Ledger() {
   })
 
   const [datePreset, setDatePreset] = useState(() => {
-    return localStorage.getItem('ledger_date_preset') || 'current_month'
+    return localStorage.getItem('ledger_date_preset') || 'all'
   })
 
   const [dateFrom, setDateFrom] = useState(() => {
@@ -38,7 +38,8 @@ export default function Ledger() {
       return new Date().toISOString().slice(0, 10)
     }
 
-    const savedPreset = localStorage.getItem('ledger_date_preset') || 'current_month'
+    const savedPreset = localStorage.getItem('ledger_date_preset') || 'all'
+    if (savedPreset === 'all') return ''
     if (savedPreset === 'current_month') {
       const today = new Date()
       return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
@@ -63,7 +64,8 @@ export default function Ledger() {
       return new Date().toISOString().slice(0, 10)
     }
 
-    const savedPreset = localStorage.getItem('ledger_date_preset') || 'current_month'
+    const savedPreset = localStorage.getItem('ledger_date_preset') || 'all'
+    if (savedPreset === 'all') return ''
     if (savedPreset === 'current_month') {
       return new Date().toISOString().slice(0, 10)
     } else if (savedPreset === 'custom') {
@@ -110,7 +112,10 @@ export default function Ledger() {
     const today = new Date()
     const year = today.getFullYear()
 
-    if (preset === 'current_month') {
+    if (preset === 'all') {
+      setDateFrom('')
+      setDateTo('')
+    } else if (preset === 'current_month') {
       const firstDay = new Date(year, today.getMonth(), 1).toISOString().slice(0, 10)
       const lastDay = today.toISOString().slice(0, 10)
       setDateFrom(firstDay)
@@ -187,12 +192,13 @@ export default function Ledger() {
   // Main loader triggered by filters or page changes
   async function loadData() {
     setLoading(true)
+    const hasFilter = customerId || dateFrom || dateTo || (type && type !== 'all')
     const filters = {
       customer_id: customerId ? Number(customerId) : null,
       date_from: dateFrom || null,
       date_to: dateTo || null,
       type: type,
-      limit: 100000,
+      limit: hasFilter ? 100000 : 50,
       offset: 0
     }
 
@@ -226,10 +232,9 @@ export default function Ledger() {
 
   const handleClearFilters = () => {
     setCustomerId('')
-    setDatePreset('current_month')
-    const defaults = getDefaultDateRange()
-    setDateFrom(defaults.from)
-    setDateTo(defaults.to)
+    setDatePreset('all')
+    setDateFrom('')
+    setDateTo('')
     setType('all')
     setPage(1)
     setSearchParams({})
@@ -271,12 +276,13 @@ export default function Ledger() {
   // Export to Excel
   const handleExportExcel = async () => {
     try {
+      const hasFilter = customerId || dateFrom || dateTo || (type && type !== 'all')
       const filters = {
         customer_id: customerId ? Number(customerId) : null,
         date_from: dateFrom || null,
         date_to: dateTo || null,
         type: type,
-        limit: 100000,
+        limit: hasFilter ? 100000 : 50,
         offset: 0
       }
 
@@ -425,6 +431,7 @@ export default function Ledger() {
               onChange={(e) => handlePresetChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white font-semibold text-slate-800"
             >
+              <option value="all">All Time (Recent 50)</option>
               <option value="current_month">Current Month</option>
               <option value="custom">Custom Dates...</option>
               <option disabled>──────────</option>

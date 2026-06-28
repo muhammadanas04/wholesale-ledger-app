@@ -47,8 +47,9 @@ export default function NewSale() {
 
   async function loadRecentSales() {
     try {
+      const hasFilter = dateFrom || dateTo
       const list = await ipc('sales:list', {
-        limit: 100000,
+        limit: hasFilter ? 100000 : 50,
         date_from: dateFrom || null,
         date_to: dateTo || null
       })
