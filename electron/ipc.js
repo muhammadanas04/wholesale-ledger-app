@@ -72,6 +72,7 @@ function registerIpcHandlers() {
   // ── Tmp Records ────────────────────────────────────────────────
   ipcMain.handle('tmp-records:list', wrap((_e, args) => db.getTmpRecords(args)))
   ipcMain.handle('tmp-records:count', wrap((_e, args) => db.getTmpRecordsCount(args)))
+  ipcMain.handle('tmp-records:delete', wrap((_e, id) => db.deleteTmpRecord(id)))
 
   // ── Reports ────────────────────────────────────────────────────
   ipcMain.handle('reports:sales-range', wrap((_e, startDate, endDate) => db.getSalesInRange(startDate, endDate)))

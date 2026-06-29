@@ -6,6 +6,8 @@ import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
 import Pagination from '../components/Pagination'
 import Skeleton from '../components/Skeleton'
+import AcceptTmpRecordModal from '../components/AcceptTmpRecordModal'
+import { CheckCircle } from 'lucide-react'
 
 const LIMIT = 15
 
@@ -19,6 +21,9 @@ export default function TmpRecords() {
   const [type, setType] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+
+  // Accept Modal State
+  const [acceptingRecord, setAcceptingRecord] = useState(null)
 
   async function load() {
     setLoading(true)
@@ -187,13 +192,14 @@ export default function TmpRecords() {
                 <th className="text-right px-5 py-3 w-28">Discount</th>
                 <th className="text-right px-5 py-3 w-32">Total / Amount</th>
                 <th className="text-left px-5 py-3 w-32">Date</th>
+                <th className="text-center px-5 py-3 w-24">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(LIMIT)].map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={9} className="px-5 py-3">
+                    <td colSpan={10} className="px-5 py-3">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
@@ -244,12 +250,23 @@ export default function TmpRecords() {
                         <td className="px-5 py-3 text-gray-500 whitespace-nowrap">
                           {formatDate(rec.date)}
                         </td>
+                        <td className="px-5 py-3 text-center">
+                          {(rec.type === 'sale' || rec.type === 'payment') && (
+                            <button
+                              onClick={() => setAcceptingRecord(rec)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 rounded-lg text-xs font-bold transition-colors border border-green-200"
+                              title={`Accept as ${rec.type}`}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Accept
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
                   {records.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="text-center py-12 text-gray-400 italic">
+                      <td colSpan={10} className="text-center py-12 text-gray-400 italic">
                         No temporary records found
                       </td>
                     </tr>
@@ -272,6 +289,15 @@ export default function TmpRecords() {
           </div>
         )}
       </div>
+
+      <AcceptTmpRecordModal
+        record={acceptingRecord}
+        onClose={() => setAcceptingRecord(null)}
+        onAccepted={() => {
+          setAcceptingRecord(null)
+          load()
+        }}
+      />
     </div>
   )
 }

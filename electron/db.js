@@ -1191,6 +1191,14 @@ function getTmpRecords({ limit = 50, offset = 0, date_from, date_to, type } = {}
   return db.prepare(sql).all(...params)
 }
 
+function deleteTmpRecord(id) {
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM tmp_records WHERE id = ?').run(id)
+  })
+  transaction()
+  return true
+}
+
 function getTmpRecordsCount({ date_from, date_to, type } = {}) {
   let sql = `SELECT COUNT(*) AS count FROM tmp_records`
   const conds = []
@@ -1270,6 +1278,7 @@ module.exports = {
   deleteOtherExpense,
   getTmpRecords,
   getTmpRecordsCount,
+  deleteTmpRecord,
   cleanupOldTmpRecords,
   clearDatabase,
 }
