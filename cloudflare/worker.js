@@ -141,6 +141,23 @@ export default {
       return { driverId: payload.driverId }
     }
 
+    // Helper to enforce a 6-month maximum lookback on sync pulls
+    const getClampedSince = (sinceParam) => {
+      let since = sinceParam || '1970-01-01 00:00:00';
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      
+      let parseStr = since;
+      if (!parseStr.includes('T')) parseStr = parseStr.replace(' ', 'T');
+      if (!parseStr.includes('Z')) parseStr += 'Z';
+      
+      const sinceDate = new Date(parseStr);
+      if (isNaN(sinceDate.getTime()) || sinceDate < sixMonthsAgo) {
+        return sixMonthsAgo.toISOString().replace('T', ' ').slice(0, 19);
+      }
+      return since;
+    };
+
     // ── ADMIN ROUTES (Require SYNC_SECRET) ──────────────────────────────────
 
     // 1. GET /pull (Core Business)
@@ -157,7 +174,7 @@ export default {
         console.error('tmp_records D1 cleanup error:', e);
       }
 
-      const since = url.searchParams.get('since') || '1970-01-01 00:00:00'
+      const since = getClampedSince(url.searchParams.get('since'))
       const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
       const results = {}
 
@@ -259,7 +276,7 @@ export default {
       const authError = checkAdminAuth()
       if (authError) return authError
 
-      const since = url.searchParams.get('since') || '1970-01-01 00:00:00'
+      const since = getClampedSince(url.searchParams.get('since'))
       const tables = ['drivers', 'deliveries', 'delivery_items']
       const results = {}
 

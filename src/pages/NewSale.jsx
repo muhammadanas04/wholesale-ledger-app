@@ -17,7 +17,7 @@ export default function NewSale() {
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [customerId, setCustomerId] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => sessionStorage.getItem('lastSelectedSaleDate') || new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState([{ product_id: '', qty: '', rate: '', total_price: '', weight: '' }])
   const [saving, setSaving] = useState(false)
@@ -69,15 +69,15 @@ export default function NewSale() {
       const prods = await ipc('products:list', { limit: 1000 }) || []
       setCustomers(await ipc('customers:list', { limit: 100000 }) || [])
       setProducts(prods)
-      
+
       const singleProductVal = await ipc('meta:get', 'single_product_mode')
       const isSingleProduct = singleProductVal === 'true'
       setSingleProductMode(isSingleProduct)
-      
+
       if (isSingleProduct && prods.length > 0 && !isEditMode) {
         setItems([{ product_id: String(prods[0].id), qty: '', rate: '', total_price: '', weight: '' }])
       }
-      
+
       const rulesVal = await ipc('meta:get', 'rounding_rules')
       if (rulesVal) {
         try {
@@ -98,7 +98,7 @@ export default function NewSale() {
             setDate(sale.date)
             setNotes(sale.notes || '')
             setDiscount(sale.discount ? (sale.discount / 100).toFixed(2) : '')
-            
+
             setItems(sale.items.map(item => ({
               product_id: String(item.product_id),
               qty: String(item.qty),
@@ -233,7 +233,6 @@ export default function NewSale() {
         await ipc('sales:add', finalData)
         toast.success('Sale saved successfully')
         setCustomerId('')
-        setDate(new Date().toISOString().slice(0, 10))
         setNotes('')
         setItems([{ product_id: singleProductMode && products.length > 0 ? String(products[0].id) : '', qty: '', rate: '', total_price: '', weight: '' }])
         setDiscount('')
@@ -307,7 +306,10 @@ export default function NewSale() {
             />
             <DatePicker
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value)
+                if (!isEditMode) sessionStorage.setItem('lastSelectedSaleDate', e.target.value)
+              }}
               required
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
             />
@@ -356,12 +358,10 @@ export default function NewSale() {
                       placeholder="0.00"
                       value={items[0]?.rate || ''}
                       onChange={(e) => updateItem(0, 'rate', e.target.value)}
-                      required
-                      className={`w-full px-3 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 h-[38px] ${
-                        isSingleRateIncorrect
-                          ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 h-[38px] ${isSingleRateIncorrect
+                        ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                        }`}
                     />
                   </div>
                 )}
@@ -373,6 +373,7 @@ export default function NewSale() {
                     placeholder="0.00"
                     value={items[0]?.weight || ''}
                     onChange={(e) => updateItem(0, 'weight', e.target.value)}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 h-[38px]"
                   />
                 </div>
@@ -380,7 +381,7 @@ export default function NewSale() {
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Total Price (₹)</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     placeholder="0.00"
                     value={items[0]?.total_price || ''}
                     onChange={(e) => updateItem(0, 'total_price', e.target.value)}
@@ -432,11 +433,10 @@ export default function NewSale() {
                       value={item.rate}
                       onChange={(e) => updateItem(i, 'rate', e.target.value)}
                       required
-                      className={`w-28 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
-                        isRateIncorrect
-                          ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
-                          : 'border-gray-300 focus:ring-blue-500'
-                      }`}
+                      className={`w-28 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${isRateIncorrect
+                        ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                        : 'border-gray-300 focus:ring-blue-500'
+                        }`}
                     />
                     <input
                       type="number"
@@ -448,7 +448,7 @@ export default function NewSale() {
                     />
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       placeholder="Total Price (₹)"
                       value={item.total_price}
                       onChange={(e) => updateItem(i, 'total_price', e.target.value)}
@@ -492,7 +492,7 @@ export default function NewSale() {
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Discount (₹):</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   max={subtotal}
                   placeholder="0.00"
@@ -505,7 +505,7 @@ export default function NewSale() {
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Final Value (₹):</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
                   max={subtotal}
                   placeholder="0.00"

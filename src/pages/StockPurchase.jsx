@@ -159,8 +159,8 @@ export default function StockPurchase() {
       }
 
       const headers = [
-        "Purchase ID", "Date", "Product", "Quantity", "Unit", "Weight (kg)", 
-        "Rate (₹)", "Total Cost (₹)", "Supplier", "Firm Name", "Bill No", 
+        "Purchase ID", "Date", "Product", "Quantity", "Unit", "Weight (kg)",
+        "Rate (₹)", "Total Cost (₹)", "Supplier", "Firm Name", "Bill No",
         "Vehicle No", "Driver Name", "Location"
       ]
       const rows = data.map((p) => [
@@ -337,17 +337,15 @@ export default function StockPurchase() {
                   placeholder="Rate (₹)"
                   value={form.rate}
                   onChange={(e) => handleRateChange(e.target.value)}
-                  required
-                  className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
-                    isRateIncorrect
-                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
-                      : 'border-gray-300 focus:ring-blue-500'
-                  }`}
+                  className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${isRateIncorrect
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500 border-2'
+                    : 'border-gray-300 focus:ring-blue-500'
+                    }`}
                 />
               )}
               <input
                 type="number"
-                step="0.01"
+                step="any"
                 placeholder="Total Cost (₹)"
                 value={form.total_cost}
                 onChange={(e) => handleTotalCostChange(e.target.value)}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import DatePicker from '../components/DatePicker'
+import CustomerSelect from '../components/CustomerSelect'
 import { ipc } from '../lib/ipc'
 import { Plus, Wallet, Trash2, Download, Calendar } from 'lucide-react'
 import { paymentSchema } from '../lib/schemas'
@@ -19,7 +20,7 @@ export default function Payments() {
   const [loading, setLoading] = useState(true)
   const [customerId, setCustomerId] = useState('')
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => sessionStorage.getItem('lastSelectedPaymentDate') || new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
@@ -78,7 +79,6 @@ export default function Payments() {
     setCustomerId('')
     setAmount('')
     setDiscount('')
-    setDate(new Date().toISOString().slice(0, 10))
     setNotes('')
     setSaving(false)
     setPage(1)
@@ -139,24 +139,25 @@ export default function Payments() {
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select
+          <CustomerSelect
             value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            required
+            onChange={setCustomerId}
+            customers={customers}
+            required={true}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-          >
-            <option value="">Select customer</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name} (₹{(c.balance / 100).toFixed(2)})</option>)}
-          </select>
+          />
           <DatePicker
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              setDate(e.target.value)
+              sessionStorage.setItem('lastSelectedPaymentDate', e.target.value)
+            }}
             required
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm cursor-pointer"
           />
           <input
             type="number"
-            step="0.01"
+            step="any"
             placeholder="Amount Paid (₹)"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -165,7 +166,7 @@ export default function Payments() {
           />
           <input
             type="number"
-            step="0.01"
+            step="any"
             placeholder="Discount (₹, optional)"
             value={discount}
             onChange={(e) => setDiscount(e.target.value)}

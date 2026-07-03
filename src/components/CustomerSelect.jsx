@@ -83,9 +83,6 @@ export default function CustomerSelect({
         if (highlightedIndex >= 0 && highlightedIndex < filteredCustomers.length) {
           e.preventDefault()
           selectCustomer(filteredCustomers[highlightedIndex])
-        } else if (filteredCustomers.length === 1) {
-          e.preventDefault()
-          selectCustomer(filteredCustomers[0])
         }
         break
       case 'Escape':
