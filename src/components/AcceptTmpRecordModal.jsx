@@ -55,7 +55,8 @@ export default function AcceptTmpRecordModal({ record, onClose, onAccepted }) {
              setProductId(String(prods[0].id))
            }
         } else if (record.type === 'payment') {
-           setAmount(record.amount ? String(record.amount / 100) : '')
+           const paymentAmount = record.total_value || record.amount
+           setAmount(paymentAmount ? String(paymentAmount / 100) : '')
         }
       }
     }
@@ -159,7 +160,7 @@ export default function AcceptTmpRecordModal({ record, onClose, onAccepted }) {
                </>
             )}
             {isPayment && (
-               <p><span className="text-blue-700">Amount:</span> ₹{(record.amount || 0) / 100}</p>
+               <p><span className="text-blue-700">Amount:</span> ₹{((record.total_value || record.amount) || 0) / 100}</p>
             )}
             <p><span className="text-blue-700">Date:</span> {new Date(record.date).toLocaleDateString()}</p>
           </div>

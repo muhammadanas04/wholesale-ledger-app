@@ -1194,6 +1194,7 @@ function getTmpRecords({ limit = 50, offset = 0, date_from, date_to, type } = {}
 function deleteTmpRecord(id) {
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM tmp_records WHERE id = ?').run(id)
+    db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('tmp_records', id)
   })
   transaction()
   return true
