@@ -77,6 +77,7 @@ export default function TmpRecords() {
         return toast.error('No temporary records data to export')
       }
       const headers = [
+        "S.No",
         "ID",
         "Type",
         "Customer / Reason",
@@ -89,7 +90,8 @@ export default function TmpRecords() {
         "Date"
       ]
 
-      const rows = data.map((rec) => [
+      const rows = data.map((rec, index) => [
+        index + 1,
         rec.id,
         rec.type.toUpperCase(),
         rec.type === 'other' ? rec.reason : rec.customer_name,
@@ -183,6 +185,7 @@ export default function TmpRecords() {
           <table className="w-full text-sm relative">
             <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
               <tr>
+                <th className="text-left px-5 py-3 w-16">S.No</th>
                 <th className="text-left px-5 py-3 w-28">Type</th>
                 <th className="text-left px-5 py-3">Customer / Reason</th>
                 <th className="text-left px-5 py-3 w-36">Phone</th>
@@ -199,14 +202,14 @@ export default function TmpRecords() {
               {loading ? (
                 [...Array(LIMIT)].map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={10} className="px-5 py-3">
+                    <td colSpan={11} className="px-5 py-3">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
                 ))
               ) : (
                 <>
-                  {records.map((rec) => {
+                  {records.map((rec, index) => {
                     let badgeClass = "bg-blue-50 text-blue-700 border border-blue-200"
                     let displayType = "Sale"
                     if (rec.type === 'payment') {
@@ -221,6 +224,9 @@ export default function TmpRecords() {
 
                     return (
                       <tr key={rec.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 text-gray-500 font-medium">
+                          {(page - 1) * LIMIT + index + 1}
+                        </td>
                         <td className="px-5 py-3 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${badgeClass}`}>
                             {displayType}
@@ -266,7 +272,7 @@ export default function TmpRecords() {
                   })}
                   {records.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="text-center py-12 text-gray-400 italic">
+                      <td colSpan={11} className="text-center py-12 text-gray-400 italic">
                         No temporary records found
                       </td>
                     </tr>
