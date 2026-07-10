@@ -89,8 +89,10 @@ async function runSyncCycle() {
           if (rows.length > 0) {
             const ids = rows.map(r => r.id).filter(id => id != null)
             if (ids.length > 0) {
-              const placeholders = ids.map(() => '?').join(', ')
-              db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+              const updateStmt = db.prepare(`UPDATE ${table} SET synced = 1 WHERE id = ?`)
+              for (const id of ids) {
+                updateStmt.run(id)
+              }
             }
           }
         }
@@ -141,13 +143,17 @@ async function runSyncCycle() {
         for (const table of tables) {
           const ids = pushedIds[table]
           if (ids.length > 0) {
-            const placeholders = ids.map(() => '?').join(', ')
-            db.prepare(`UPDATE ${table} SET synced = 1 WHERE id IN (${placeholders})`).run(...ids)
+            const updateStmt = db.prepare(`UPDATE ${table} SET synced = 1 WHERE id = ?`)
+            for (const id of ids) {
+              updateStmt.run(id)
+            }
           }
         }
         if (pendingDeleteIds.length > 0) {
-          const placeholders = pendingDeleteIds.map(() => '?').join(', ')
-          db.prepare(`UPDATE deleted_log SET synced = 1 WHERE id IN (${placeholders})`).run(...pendingDeleteIds)
+          const updateStmt = db.prepare(`UPDATE deleted_log SET synced = 1 WHERE id = ?`)
+          for (const id of pendingDeleteIds) {
+            updateStmt.run(id)
+          }
         }
       })()
     }

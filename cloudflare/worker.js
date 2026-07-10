@@ -218,21 +218,21 @@ export default {
       const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
 
       try {
+        const stmts = []
+
         for (const table of tables) {
           const rows = data[table] || []
-          if (rows.length === 0) continue
-
           for (const row of rows) {
             const columns = Object.keys(row).filter(k => k !== 'synced')
             const placeholders = columns.map(() => '?').join(', ')
             const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
 
-            await env.DB.prepare(`
+            stmts.push(env.DB.prepare(`
               INSERT INTO ${table} (${columns.join(', ')})
               VALUES (${placeholders})
               ON CONFLICT(id) DO UPDATE SET ${updates}
               WHERE EXCLUDED.updated_at > ${table}.updated_at
-            `).bind(...columns.map(c => row[c])).run()
+            `).bind(...columns.map(c => row[c])))
           }
         }
 
@@ -241,22 +241,25 @@ export default {
         for (const entry of deletes) {
           const { table_name, row_id } = entry
           if (!tables.includes(table_name)) continue // safety guard
-          await env.DB.prepare(`DELETE FROM ${table_name} WHERE id = ?`).bind(row_id).run()
+          stmts.push(env.DB.prepare(`DELETE FROM ${table_name} WHERE id = ?`).bind(row_id))
         }
 
         // Handle settings push
         const settings = data._settings
         if (settings && settings.rounding_rules && settings.rounding_rules_updated_at) {
-          try {
-            await env.DB.prepare(`
-              INSERT INTO _meta (key, value, updated_at)
-              VALUES ('rounding_rules', ?, ?)
-              ON CONFLICT(key) DO UPDATE SET
-                value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
-                updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
-            `).bind(settings.rounding_rules, settings.rounding_rules_updated_at).run()
-          } catch (e) {
-            console.error('Settings sync push error:', e)
+          stmts.push(env.DB.prepare(`
+            INSERT INTO _meta (key, value, updated_at)
+            VALUES ('rounding_rules', ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+              value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
+              updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
+          `).bind(settings.rounding_rules, settings.rounding_rules_updated_at))
+        }
+
+        if (stmts.length > 0) {
+          const CHUNK_SIZE = 100
+          for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
+            await env.DB.batch(stmts.slice(i, i + CHUNK_SIZE))
           }
         }
 
@@ -301,21 +304,28 @@ export default {
       const tables = ['drivers', 'deliveries', 'delivery_items']
 
       try {
+        const stmts = []
+
         for (const table of tables) {
           const rows = data[table] || []
-          if (rows.length === 0) continue
-
           for (const row of rows) {
             const columns = Object.keys(row).filter(k => k !== 'synced')
             const placeholders = columns.map(() => '?').join(', ')
             const updates = columns.map(c => `${c} = EXCLUDED.${c}`).join(', ')
 
-            await env.DB.prepare(`
+            stmts.push(env.DB.prepare(`
               INSERT INTO ${table} (${columns.join(', ')})
               VALUES (${placeholders})
               ON CONFLICT(id) DO UPDATE SET ${updates}
               WHERE EXCLUDED.updated_at > ${table}.updated_at
-            `).bind(...columns.map(c => row[c])).run()
+            `).bind(...columns.map(c => row[c])))
+          }
+        }
+
+        if (stmts.length > 0) {
+          const CHUNK_SIZE = 100
+          for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
+            await env.DB.batch(stmts.slice(i, i + CHUNK_SIZE))
           }
         }
 
