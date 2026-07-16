@@ -1243,6 +1243,16 @@ function addOtherExpense({ category_id, money_spent, money_gained, reason, date 
   return db.prepare(`SELECT * FROM other_expenses WHERE id = ?`).get(result.lastInsertRowid)
 }
 
+function updateOtherExpense(id, { category_id, money_spent, money_gained, reason, date }) {
+  const stmt = db.prepare(`
+    UPDATE other_expenses
+    SET category_id = ?, money_spent = ?, money_gained = ?, reason = ?, date = ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `)
+  stmt.run(category_id || null, money_spent, money_gained, reason, date, id)
+  return db.prepare(`SELECT * FROM other_expenses WHERE id = ?`).get(id)
+}
+
 function deleteOtherExpense(id) {
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM other_expenses WHERE id = ?').run(id)
@@ -1392,6 +1402,7 @@ module.exports = {
   getOtherExpenses,
   getOtherExpensesCount,
   addOtherExpense,
+  updateOtherExpense,
   deleteOtherExpense,
   getExpenseCategories,
   addExpenseCategory,

@@ -67,6 +67,7 @@ function registerIpcHandlers() {
   ipcMain.handle('other-expenses:list', wrap((_e, args) => db.getOtherExpenses(args)))
   ipcMain.handle('other-expenses:count', wrap((_e, args) => db.getOtherExpensesCount(args)))
   ipcMain.handle('other-expenses:add', wrap((_e, data) => db.addOtherExpense(data)))
+  ipcMain.handle('other-expenses:update', wrap((_e, { id, ...data }) => db.updateOtherExpense(id, data)))
   ipcMain.handle('other-expenses:delete', wrap((_e, id) => db.deleteOtherExpense(id)))
 
   // ── Expense Categories ─────────────────────────────────────────

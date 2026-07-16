@@ -23,6 +23,7 @@ export default function OtherExpenses() {
   const [categories, setCategories] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [editingExpense, setEditingExpense] = useState(null);
 
   // Form States
   const [categoryId, setCategoryId] = useState("");
@@ -112,11 +113,23 @@ export default function OtherExpenses() {
 
     setSaving(true);
     try {
-      await ipc("other-expenses:add", {
-        ...expenseData,
-        money_spent: Math.round(expenseData.money_spent * 100),
-        money_gained: Math.round(expenseData.money_gained * 100),
-      });
+      if (editingExpense) {
+        await ipc("other-expenses:update", {
+          id: editingExpense.id,
+          ...expenseData,
+          money_spent: Math.round(expenseData.money_spent * 100),
+          money_gained: Math.round(expenseData.money_gained * 100),
+        });
+        toast.success("Expense record updated successfully");
+      } else {
+        await ipc("other-expenses:add", {
+          ...expenseData,
+          money_spent: Math.round(expenseData.money_spent * 100),
+          money_gained: Math.round(expenseData.money_gained * 100),
+        });
+        toast.success("Expense record added successfully");
+      }
+      setEditingExpense(null);
       setCategoryId("");
       setMoneySpent("");
       setMoneyGained("");
@@ -124,13 +137,22 @@ export default function OtherExpenses() {
       setDate(new Date().toISOString().slice(0, 10));
       setPage(1);
       loadExpenses();
-      toast.success("Expense record added successfully");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add expense");
+      toast.error(editingExpense ? "Failed to update expense" : "Failed to add expense");
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleEditExpense(exp) {
+    setEditingExpense(exp);
+    setCategoryId(exp.category_id || "");
+    setMoneySpent(exp.money_spent ? exp.money_spent / 100 : "");
+    setMoneyGained(exp.money_gained ? exp.money_gained / 100 : "");
+    setReason(exp.reason);
+    setDate(exp.date);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function confirmDelete(id) {
@@ -277,8 +299,24 @@ export default function OtherExpenses() {
             onSubmit={handleSubmit}
             className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm"
           >
-            <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-2">
-              Record Expense/Income
+            <h2 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-2 flex items-center justify-between">
+              <span>{editingExpense ? "Edit Expense/Income" : "Record Expense/Income"}</span>
+              {editingExpense && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingExpense(null);
+                    setCategoryId("");
+                    setMoneySpent("");
+                    setMoneyGained("");
+                    setReason("");
+                    setDate(new Date().toISOString().slice(0, 10));
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  Cancel Edit
+                </button>
+              )}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <CategorySelect
@@ -324,7 +362,7 @@ export default function OtherExpenses() {
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" />{" "}
-              {saving ? "Recording..." : "Record Entry"}
+              {saving ? (editingExpense ? "Updating..." : "Recording...") : (editingExpense ? "Update Entry" : "Record Entry")}
             </button>
           </form>
         </div>
@@ -387,7 +425,7 @@ export default function OtherExpenses() {
                       <span className="text-sm font-semibold text-gray-700">
                         {cat.name}
                       </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 transition-opacity">
                         <button
                           onClick={() => {
                             setEditingCategory(cat);
@@ -549,12 +587,22 @@ export default function OtherExpenses() {
                           : "-"}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        <button
-                          onClick={() => confirmDelete(exp.id)}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleEditExpense(exp)}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(exp.id)}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
