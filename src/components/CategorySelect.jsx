@@ -77,13 +77,13 @@ export default function CategorySelect({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setHighlightedIndex((prev) => 
+        setHighlightedIndex((prev) =>
           prev < totalItems - 1 ? prev + 1 : 0
         )
         break
       case 'ArrowUp':
         e.preventDefault()
-        setHighlightedIndex((prev) => 
+        setHighlightedIndex((prev) =>
           prev > 0 ? prev - 1 : totalItems - 1
         )
         break
@@ -147,7 +147,7 @@ export default function CategorySelect({
         autoComplete="off"
       />
       <input type="hidden" value={value || ''} required={required} />
-      
+
       {isOpen && (totalItems > 0) && (
         <ul className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-50 divide-y divide-gray-50 py-1 transition-all duration-150 ease-out animate-fade-in-down">
           {filteredCategories.map((cat, index) => {
@@ -155,7 +155,7 @@ export default function CategorySelect({
             const matchIndex = cat.name.toLowerCase().indexOf((searchText || '').toLowerCase())
             const searchActive = searchText && (!selectedCategory || searchText !== selectedCategory.name)
             const hasMatch = matchIndex !== -1 && searchActive
-            
+
             const beforeMatch = hasMatch ? cat.name.slice(0, matchIndex) : cat.name
             const matchText = hasMatch ? cat.name.slice(matchIndex, matchIndex + searchText.length) : ''
             const afterMatch = hasMatch ? cat.name.slice(matchIndex + searchText.length) : ''
@@ -168,11 +168,10 @@ export default function CategorySelect({
                   selectCategory(cat)
                 }}
                 onMouseEnter={() => setHighlightedIndex(index)}
-                className={`px-4 py-2 text-sm cursor-pointer transition-colors duration-150 flex items-center justify-between ${
-                  isHighlighted 
-                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                className={`px-4 py-2 text-sm cursor-pointer transition-colors duration-150 flex items-center justify-between ${isHighlighted
+                    ? 'bg-blue-50 text-blue-700 font-medium'
                     : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 <span className="truncate">
                   {hasMatch ? (
@@ -188,7 +187,7 @@ export default function CategorySelect({
               </li>
             )
           })}
-          
+
           {showCreateOption && (
             <li
               onMouseDown={(e) => {
@@ -196,14 +195,13 @@ export default function CategorySelect({
                 handleCreateCategory()
               }}
               onMouseEnter={() => setHighlightedIndex(filteredCategories.length)}
-              className={`px-4 py-2 text-sm cursor-pointer transition-colors duration-150 flex items-center gap-2 ${
-                highlightedIndex === filteredCategories.length
+              className={`px-4 py-2 text-sm cursor-pointer transition-colors duration-150 flex items-center gap-2 ${highlightedIndex === filteredCategories.length
                   ? 'bg-blue-50 text-blue-700 font-medium'
                   : 'text-blue-600 hover:bg-blue-50 font-medium'
-              }`}
+                }`}
             >
               <Plus className="w-4 h-4" />
-              <span>+ Create "{searchText.trim()}"</span>
+              <span>Create "{searchText.trim()}"</span>
             </li>
           )}
         </ul>
