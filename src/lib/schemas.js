@@ -4,6 +4,7 @@ export const customerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
+  carried_forward: z.number().optional()
 })
 
 export const productSchema = z.object({
@@ -52,6 +53,7 @@ export const stockPurchaseSchema = z.object({
 })
 
 export const otherExpenseSchema = z.object({
+  category_id: z.number().positive().optional().nullable(),
   money_spent: z.number().nonnegative('Money spent must be positive or zero'),
   money_gained: z.number().nonnegative('Money gained must be positive or zero'),
   reason: z.string().min(2, 'Reason must be at least 2 characters'),

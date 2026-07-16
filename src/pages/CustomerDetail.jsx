@@ -217,6 +217,12 @@ function BillInvoice({
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-slate-50 border-t border-gray-200">
+                <tr>
+                  <td colSpan={3} className="text-right px-4 py-2.5 font-bold text-slate-600 text-xs uppercase tracking-wider">Total</td>
+                  <td className="text-right px-4 py-2.5 font-black text-green-700">{formatCurrency(totalPayments)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -481,6 +487,17 @@ export default function CustomerDetail() {
   if (!customer) return <div className="p-6 text-gray-400">Customer not found</div>
 
   const transactions = [
+    ...(customer.carried_forward ? [{
+      type: 'carried_forward',
+      date: '2000-01-01',
+      desc: 'Carried Forward Amount',
+      original_amount: customer.carried_forward,
+      discount: 0,
+      final_amount: customer.carried_forward,
+      amount: customer.carried_forward,
+      id: 'cf',
+      rate: 0
+    }] : []),
     ...sales.map((s) => {
       let roundingDiscount = 0
       let finalRounded = s.total_amount
@@ -523,6 +540,8 @@ export default function CustomerDetail() {
       id: p.id
     })),
   ].sort((a, b) => {
+    if (a.type === 'carried_forward') return 1
+    if (b.type === 'carried_forward') return -1
     const dateComp = b.date.localeCompare(a.date)
     if (dateComp !== 0) return dateComp
     return b.id - a.id
@@ -679,7 +698,7 @@ export default function CustomerDetail() {
                           }}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                         />
-                      ) : (
+                      ) : r.type === 'payment' ? (
                         <input
                            type="checkbox"
                           checked={selectedPaymentIds.includes(r.id)}
@@ -692,9 +711,9 @@ export default function CustomerDetail() {
                           }}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                         />
-                      )}
+                      ) : null}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(r.date)}</td>
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{r.type === 'carried_forward' ? '' : formatDate(r.date)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
                     {showRateField && (
                       <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
@@ -702,10 +721,10 @@ export default function CustomerDetail() {
                       </td>
                     )}
                     <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">
-                      {r.type === 'sale' ? formatCurrency(r.original_amount) : '-'}
+                      {(r.type === 'sale' || r.type === 'carried_forward') ? formatCurrency(r.original_amount) : '-'}
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap font-bold">
-                      {r.type === 'sale' ? (
+                      {(r.type === 'sale' || r.type === 'carried_forward') ? (
                         r.discount > 0 ? (
                           <span className="text-emerald-600">-{formatCurrency(r.discount)}</span>
                         ) : r.discount < 0 ? (
@@ -721,8 +740,8 @@ export default function CustomerDetail() {
                         )
                       )}
                     </td>
-                    <td className={`px-6 py-4 text-right font-black whitespace-nowrap ${r.type === 'sale' ? 'text-slate-900' : 'text-green-600'}`}>
-                      {r.type === 'sale' ? formatCurrency(r.final_amount) : `-${formatCurrency(r.final_amount)}`}
+                    <td className={`px-6 py-4 text-right font-black whitespace-nowrap ${(r.type === 'sale' || r.type === 'carried_forward') ? 'text-slate-900' : 'text-green-600'}`}>
+                      {(r.type === 'sale' || r.type === 'carried_forward') ? formatCurrency(r.final_amount) : `-${formatCurrency(r.final_amount)}`}
                     </td>
                     <td className="px-6 py-4 text-center no-print flex items-center justify-center gap-2">
                       {r.type === 'sale' && (

@@ -588,6 +588,7 @@ export default function NewSale() {
           <table className="w-full text-sm relative">
             <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
               <tr>
+                <th className="text-center px-6 py-3.5 w-12">#</th>
                 <th className="text-left px-6 py-3.5 w-32">Date</th>
                 <th className="text-left px-6 py-3.5">Customer</th>
                 <th className="text-right px-6 py-3.5 w-24">Qty</th>
@@ -601,13 +602,16 @@ export default function NewSale() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {recentSales.map((sale) => {
+              {recentSales.map((sale, index) => {
                 const sub = sale.total_amount
                 const disc = sale.discount || 0
                 const finalVal = sub - disc
 
                 return (
                   <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="text-center px-6 py-4 text-gray-400 font-medium">
+                      {index + 1}
+                    </td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                       {formatDate(sale.date)}
                     </td>
@@ -655,7 +659,7 @@ export default function NewSale() {
               })}
               {recentSales.length === 0 && (
                 <tr>
-                  <td colSpan={showRateField ? 10 : 9} className="text-center py-8 text-gray-400 italic">
+                  <td colSpan={showRateField ? 11 : 10} className="text-center py-8 text-gray-400 italic">
                     No sales recorded yet.
                   </td>
                 </tr>
@@ -664,7 +668,7 @@ export default function NewSale() {
             {recentSales.length > 0 && (
               <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-xs font-bold text-gray-700">
                 <tr>
-                  <td className="px-6 py-4 text-gray-900 font-black uppercase tracking-wider" colSpan={2}>
+                  <td className="px-6 py-4 text-gray-900 font-black uppercase tracking-wider" colSpan={3}>
                     Total
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">

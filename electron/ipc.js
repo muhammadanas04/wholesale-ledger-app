@@ -69,6 +69,12 @@ function registerIpcHandlers() {
   ipcMain.handle('other-expenses:add', wrap((_e, data) => db.addOtherExpense(data)))
   ipcMain.handle('other-expenses:delete', wrap((_e, id) => db.deleteOtherExpense(id)))
 
+  // ── Expense Categories ─────────────────────────────────────────
+  ipcMain.handle('expense-categories:list', wrap(() => db.getExpenseCategories()))
+  ipcMain.handle('expense-categories:add', wrap((_e, data) => db.addExpenseCategory(data)))
+  ipcMain.handle('expense-categories:update', wrap((_e, { id, ...data }) => db.updateExpenseCategory(id, data)))
+  ipcMain.handle('expense-categories:delete', wrap((_e, id) => db.deleteExpenseCategory(id)))
+
   // ── Tmp Records ────────────────────────────────────────────────
   ipcMain.handle('tmp-records:list', wrap((_e, args) => db.getTmpRecords(args)))
   ipcMain.handle('tmp-records:count', wrap((_e, args) => db.getTmpRecordsCount(args)))

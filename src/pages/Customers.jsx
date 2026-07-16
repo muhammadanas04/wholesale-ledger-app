@@ -38,7 +38,7 @@ export default function Customers() {
   }, [order])
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ name: '', phone: '', address: '' })
+  const [form, setForm] = useState({ name: '', phone: '', address: '', carried_forward: '' })
 
   async function load() {
     setLoading(true)
@@ -69,29 +69,34 @@ export default function Customers() {
 
   function openAdd() {
     setEditId(null)
-    setForm({ name: '', phone: '', address: '' })
+    setForm({ name: '', phone: '', address: '', carried_forward: '' })
     setShowForm(true)
   }
 
   function openEdit(c) {
     setEditId(c.id)
-    setForm({ name: c.name, phone: c.phone || '', address: c.address || '' })
+    setForm({ name: c.name, phone: c.phone || '', address: c.address || '', carried_forward: c.carried_forward ? (c.carried_forward / 100).toString() : '' })
     setShowForm(true)
   }
 
   async function handleSave(e) {
     e.preventDefault()
 
-    const result = customerSchema.safeParse(form)
+    const dataToSave = {
+      ...form,
+      carried_forward: form.carried_forward ? Math.round(parseFloat(form.carried_forward) * 100) : 0
+    }
+
+    const result = customerSchema.safeParse(dataToSave)
     if (!result.success) {
       return toast.error(result.error.errors[0].message)
     }
 
     if (editId) {
-      await ipc('customers:update', editId, form)
+      await ipc('customers:update', editId, dataToSave)
       toast.success('Customer updated')
     } else {
-      await ipc('customers:add', form)
+      await ipc('customers:add', dataToSave)
       toast.success('Customer added')
     }
     setShowForm(false)
@@ -187,6 +192,14 @@ export default function Customers() {
             placeholder="Address"
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          <input
+            placeholder="Carried Forward Amount (Optional)"
+            type="number"
+            step="0.01"
+            value={form.carried_forward}
+            onChange={(e) => setForm({ ...form, carried_forward: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
           <div className="flex gap-2">

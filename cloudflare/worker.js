@@ -175,7 +175,8 @@ export default {
       }
 
       const since = getClampedSince(url.searchParams.get('since'))
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
+      const apiVersion = url.searchParams.get('v')
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
       const results = {}
 
       for (const table of tables) {
@@ -186,14 +187,30 @@ export default {
         results[table] = rows.map(({ synced, ...rest }) => rest)
       }
 
+      // Backward compatibility for legacy clients (like the older Android admin app).
+      // If the client didn't specify v=2, hide the new category schema so it doesn't crash on pull.
+      if (apiVersion !== '2') {
+        delete results['expense_categories']
+        if (results['other_expenses']) {
+          results['other_expenses'] = results['other_expenses'].map(({ category_id, ...rest }) => rest)
+        }
+      }
+
       // Fetch dynamic settings from _meta
       let roundingRules = null
       let roundingRulesUpdatedAt = null
+      let carriedForwardData = null
+      let carriedForwardUpdatedAt = null
       try {
         const rulesRow = await env.DB.prepare("SELECT value, updated_at FROM _meta WHERE key = 'rounding_rules'").first()
         if (rulesRow) {
           roundingRules = rulesRow.value
           roundingRulesUpdatedAt = rulesRow.updated_at
+        }
+        const cfRow = await env.DB.prepare("SELECT value, updated_at FROM _meta WHERE key = 'carried_forward_data'").first()
+        if (cfRow) {
+          carriedForwardData = cfRow.value
+          carriedForwardUpdatedAt = cfRow.updated_at
         }
       } catch (e) {
         // Table may not exist yet or be empty, ignore safely
@@ -201,7 +218,9 @@ export default {
 
       results['_settings'] = {
         rounding_rules: roundingRules,
-        rounding_rules_updated_at: roundingRulesUpdatedAt
+        rounding_rules_updated_at: roundingRulesUpdatedAt,
+        carried_forward_data: carriedForwardData,
+        carried_forward_updated_at: carriedForwardUpdatedAt
       }
 
       return new Response(JSON.stringify(results), {
@@ -215,7 +234,7 @@ export default {
       if (authError) return authError
 
       const data = await request.json()
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
 
       try {
         const stmts = []
@@ -246,14 +265,25 @@ export default {
 
         // Handle settings push
         const settings = data._settings
-        if (settings && settings.rounding_rules && settings.rounding_rules_updated_at) {
-          stmts.push(env.DB.prepare(`
-            INSERT INTO _meta (key, value, updated_at)
-            VALUES ('rounding_rules', ?, ?)
-            ON CONFLICT(key) DO UPDATE SET
-              value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
-              updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
-          `).bind(settings.rounding_rules, settings.rounding_rules_updated_at))
+        if (settings) {
+          if (settings.rounding_rules && settings.rounding_rules_updated_at) {
+            stmts.push(env.DB.prepare(`
+              INSERT INTO _meta (key, value, updated_at)
+              VALUES ('rounding_rules', ?, ?)
+              ON CONFLICT(key) DO UPDATE SET
+                value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
+                updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
+            `).bind(settings.rounding_rules, settings.rounding_rules_updated_at))
+          }
+          if (settings.carried_forward_data && settings.carried_forward_updated_at) {
+            stmts.push(env.DB.prepare(`
+              INSERT INTO _meta (key, value, updated_at)
+              VALUES ('carried_forward_data', ?, ?)
+              ON CONFLICT(key) DO UPDATE SET
+                value = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.value ELSE _meta.value END,
+                updated_at = CASE WHEN excluded.updated_at > _meta.updated_at OR _meta.updated_at IS NULL THEN excluded.updated_at ELSE _meta.updated_at END
+            `).bind(settings.carried_forward_data, settings.carried_forward_updated_at))
+          }
         }
 
         if (stmts.length > 0) {

@@ -229,6 +229,7 @@ export default function Payments() {
           <table className="w-full text-sm relative">
             <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider shadow-[0_1px_0_0_#e5e7eb]">
               <tr>
+                <th className="text-center px-5 py-3 w-12">#</th>
                 <th className="text-left px-5 py-3">Date</th>
                 <th className="text-left px-5 py-3">Customer</th>
                 <th className="text-right px-5 py-3">Amount</th>
@@ -241,12 +242,13 @@ export default function Payments() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}><td colSpan={7} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={8} className="px-5 py-3"><Skeleton className="h-6 w-full" /></td></tr>
                 ))
               ) : (
                 <>
-                  {payments.map((p) => (
+                  {payments.map((p, index) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="text-center px-5 py-3 text-gray-400 font-medium">{index + 1}</td>
                       <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatDate(p.date)}</td>
                       <td className="px-5 py-3 font-medium text-gray-800">{p.customer_name}</td>
                       <td className="px-5 py-3 text-right text-green-600 font-bold">{formatCurrency(p.amount)}</td>
@@ -269,11 +271,34 @@ export default function Payments() {
                     </tr>
                   ))}
                   {payments.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
+                    <tr><td colSpan={8} className="text-center py-12 text-gray-400 italic">No payments recorded</td></tr>
                   )}
                 </>
               )}
             </tbody>
+            {!loading && payments.length > 0 && (
+              <tfoot className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
+                <tr className="hover:bg-slate-50 transition-colors">
+                  <td colSpan={3} className="px-5 py-3 text-slate-800 font-black text-right whitespace-nowrap">Total (Page)</td>
+                  <td className="px-5 py-3 text-right font-black text-green-600 whitespace-nowrap">
+                    {formatCurrency(payments.reduce((sum, p) => sum + p.amount, 0))}
+                  </td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    {payments.reduce((sum, p) => sum + (p.discount || 0), 0) > 0 ? (
+                      <span className="text-red-500 font-bold">
+                        -{formatCurrency(payments.reduce((sum, p) => sum + (p.discount || 0), 0))}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 font-medium">-</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-right font-black whitespace-nowrap text-slate-900">
+                    {formatCurrency(payments.reduce((sum, p) => sum + p.amount - (p.discount || 0), 0))}
+                  </td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

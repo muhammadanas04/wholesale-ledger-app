@@ -5,7 +5,7 @@ const fs = require('fs')
 
 let db
 
-const SCHEMA_VERSION = 10
+const SCHEMA_VERSION = 12
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -37,7 +37,8 @@ function migrate() {
       balance INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      synced INTEGER DEFAULT 0
+      synced INTEGER DEFAULT 0,
+      carried_forward INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -249,6 +250,31 @@ function migrate() {
     }
   }
 
+  if (version < 11) {
+    try {
+      db.exec("ALTER TABLE customers ADD COLUMN carried_forward INTEGER NOT NULL DEFAULT 0;")
+    } catch (e) {
+      console.error('Migration to version 11 failed:', e)
+    }
+  }
+
+  if (version < 12) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS expense_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+      db.exec("ALTER TABLE other_expenses ADD COLUMN category_id INTEGER;")
+    } catch (e) {
+      console.error('Migration to version 12 failed:', e)
+    }
+  }
+
   if (version < SCHEMA_VERSION) {
     db.prepare("UPDATE _meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION))
   }
@@ -279,21 +305,24 @@ function getCustomer(id) {
   return db.prepare('SELECT * FROM customers WHERE id = ?').get(id)
 }
 
-function addCustomer({ name, phone, address }) {
+function addCustomer({ name, phone, address, carried_forward }) {
+  const cf = carried_forward ? Number(carried_forward) : 0
   const stmt = db.prepare(`
-    INSERT INTO customers (name, phone, address)
-    VALUES (?, ?, ?)
+    INSERT INTO customers (name, phone, address, carried_forward, balance)
+    VALUES (?, ?, ?, ?, ?)
   `)
-  const result = stmt.run(name, phone || null, address || null)
+  const result = stmt.run(name, phone || null, address || null, cf, cf)
   return getCustomer(result.lastInsertRowid)
 }
 
-function updateCustomer(id, { name, phone, address }) {
+function updateCustomer(id, { name, phone, address, carried_forward }) {
+  const cf = carried_forward !== undefined ? Number(carried_forward) : 0
   db.prepare(`
     UPDATE customers
-    SET name = ?, phone = ?, address = ?, updated_at = datetime('now'), synced = 0
+    SET name = ?, phone = ?, address = ?, carried_forward = ?, updated_at = datetime('now'), synced = 0
     WHERE id = ?
-  `).run(name, phone || null, address || null, id)
+  `).run(name, phone || null, address || null, cf, id)
+  recalculateBalance(id)
   return getCustomer(id)
 }
 
@@ -311,6 +340,9 @@ function searchCustomers(query, { limit = 50, offset = 0, sortBy = 'name', order
 }
 
 function recalculateBalance(customerId) {
+  const customer = db.prepare('SELECT carried_forward FROM customers WHERE id = ?').get(customerId)
+  const cf = customer ? customer.carried_forward : 0
+
   const salesTotal = db.prepare(`
     SELECT COALESCE(SUM(total_amount - discount), 0) AS total FROM sales WHERE customer_id = ?
   `).get(customerId).total
@@ -319,7 +351,7 @@ function recalculateBalance(customerId) {
     SELECT COALESCE(SUM(amount - discount), 0) AS total FROM payments WHERE customer_id = ?
   `).get(customerId).total
 
-  const balance = salesTotal - paymentsTotal
+  const balance = cf + salesTotal - paymentsTotal
   db.prepare(`
     UPDATE customers SET balance = ?, updated_at = datetime('now'), synced = 0 WHERE id = ?
   `).run(balance, customerId)
@@ -989,15 +1021,60 @@ function buildLedgerQueries(filters = {}) {
     paymentsSql += " WHERE " + paymentsConds.join(" AND ")
   }
 
+  let cfSql = `
+    SELECT
+      'carried_forward' AS type,
+      c.id      AS id,
+      c.id      AS customer_id,
+      c.name    AS customer_name,
+      '2000-01-01' AS date,
+      c.carried_forward AS amount,
+      0         AS discount,
+      'Carried Forward' AS notes,
+      NULL      AS weight,
+      c.id      AS reference_id,
+      '2000-01-01 00:00:00' AS created_at
+    FROM customers c
+    WHERE c.carried_forward > 0
+  `
+  let cfConds = []
+  let cfParams = []
+
+  if (customer_id) {
+    cfConds.push("c.id = ?")
+    cfParams.push(Number(customer_id))
+  }
+  // Date filters for carried forward are ignored so it always shows up in the ledger,
+  // or we can hide it if date_from > '2000-01-01'? The user wants it to be shown.
+  // Actually, if we filter by date, carried_forward might disappear, which makes the running balance incorrect.
+  // It's better to always include it if they query from the beginning, but let's just include it if no date_from is set, OR if we want it to always be there.
+  // Since date is '2000-01-01', if date_from is '2023-01-01', it won't be included if we add condition. Let's not add date conds for CF so the balance is right?
+  // Wait, if it's a date range, the user only wants entries in that range. So if date_from > 2000, CF shouldn't show.
+  if (date_from) {
+    cfConds.push("'2000-01-01' >= ?")
+    cfParams.push(date_from)
+  }
+  if (date_to) {
+    cfConds.push("'2000-01-01' <= ?")
+    cfParams.push(date_to)
+  }
+  if (cfConds.length > 0) {
+    cfSql += " AND " + cfConds.join(" AND ")
+  }
+
   let parts = []
   let params = []
 
   if (!type || type === 'all') {
+    parts.push(cfSql)
+    params.push(...cfParams)
     parts.push(salesSql)
     params.push(...salesParams)
     parts.push(paymentsSql)
     params.push(...paymentsParams)
   } else if (type === 'sale') {
+    parts.push(cfSql)
+    params.push(...cfParams)
     parts.push(salesSql)
     params.push(...salesParams)
   } else if (type === 'payment') {
@@ -1057,7 +1134,7 @@ function getLedgerSummary(filters = {}) {
   const unionSql = parts.join(" UNION ALL ")
   const sql = `
     SELECT 
-      COALESCE(SUM(CASE WHEN type = 'sale' THEN amount - discount ELSE 0 END), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN type IN ('sale', 'carried_forward') THEN amount - discount ELSE 0 END), 0) AS total_sales,
       COALESCE(SUM(CASE WHEN type = 'payment' THEN -amount - discount ELSE 0 END), 0) AS total_payments,
       COUNT(*) AS entry_count
     FROM (
@@ -1095,48 +1172,60 @@ function setMeta(key, value) {
 
 // ── Other Expenses ─────────────────────────────────────────────────
 
-function getOtherExpenses({ limit = 50, offset = 0, date_from, date_to, search } = {}) {
-  let sql = `SELECT * FROM other_expenses`
+function getOtherExpenses({ limit = 50, offset = 0, date_from, date_to, search, category_id } = {}) {
+  let sql = `
+    SELECT e.*, c.name as category_name 
+    FROM other_expenses e
+    LEFT JOIN expense_categories c ON e.category_id = c.id
+  `
   const conds = []
   const params = []
   
   if (date_from) {
-    conds.push("date >= ?")
+    conds.push("e.date >= ?")
     params.push(date_from)
   }
   if (date_to) {
-    conds.push("date <= ?")
+    conds.push("e.date <= ?")
     params.push(date_to)
   }
   if (search) {
-    conds.push("reason LIKE ?")
+    conds.push("e.reason LIKE ?")
     params.push(`%${search}%`)
+  }
+  if (category_id) {
+    conds.push("e.category_id = ?")
+    params.push(category_id)
   }
   
   if (conds.length > 0) {
     sql += " WHERE " + conds.join(" AND ")
   }
-  sql += " ORDER BY date DESC, id DESC LIMIT ? OFFSET ?"
+  sql += " ORDER BY e.date DESC, e.id DESC LIMIT ? OFFSET ?"
   params.push(limit, offset)
   return db.prepare(sql).all(...params)
 }
 
-function getOtherExpensesCount({ date_from, date_to, search } = {}) {
-  let sql = `SELECT COUNT(*) AS count FROM other_expenses`
+function getOtherExpensesCount({ date_from, date_to, search, category_id } = {}) {
+  let sql = `SELECT COUNT(*) AS count FROM other_expenses e`
   const conds = []
   const params = []
   
   if (date_from) {
-    conds.push("date >= ?")
+    conds.push("e.date >= ?")
     params.push(date_from)
   }
   if (date_to) {
-    conds.push("date <= ?")
+    conds.push("e.date <= ?")
     params.push(date_to)
   }
   if (search) {
-    conds.push("reason LIKE ?")
+    conds.push("e.reason LIKE ?")
     params.push(`%${search}%`)
+  }
+  if (category_id) {
+    conds.push("e.category_id = ?")
+    params.push(category_id)
   }
   
   if (conds.length > 0) {
@@ -1145,12 +1234,12 @@ function getOtherExpensesCount({ date_from, date_to, search } = {}) {
   return db.prepare(sql).get(...params).count
 }
 
-function addOtherExpense({ money_spent, money_gained, reason, date }) {
+function addOtherExpense({ category_id, money_spent, money_gained, reason, date }) {
   const stmt = db.prepare(`
-    INSERT INTO other_expenses (money_spent, money_gained, reason, date)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO other_expenses (category_id, money_spent, money_gained, reason, date)
+    VALUES (?, ?, ?, ?, ?)
   `)
-  const result = stmt.run(money_spent, money_gained, reason, date)
+  const result = stmt.run(category_id || null, money_spent, money_gained, reason, date)
   return db.prepare(`SELECT * FROM other_expenses WHERE id = ?`).get(result.lastInsertRowid)
 }
 
@@ -1158,6 +1247,33 @@ function deleteOtherExpense(id) {
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM other_expenses WHERE id = ?').run(id)
     db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('other_expenses', id)
+  })
+  transaction()
+  return true
+}
+
+// ── Expense Categories ─────────────────────────────────────────────
+
+function getExpenseCategories() {
+  return db.prepare(`SELECT * FROM expense_categories ORDER BY name ASC`).all()
+}
+
+function addExpenseCategory({ name }) {
+  const stmt = db.prepare(`INSERT INTO expense_categories (name) VALUES (?)`)
+  const result = stmt.run(name)
+  return db.prepare(`SELECT * FROM expense_categories WHERE id = ?`).get(result.lastInsertRowid)
+}
+
+function updateExpenseCategory(id, { name }) {
+  db.prepare(`UPDATE expense_categories SET name = ?, updated_at = datetime('now') WHERE id = ?`).run(name, id)
+  return true
+}
+
+function deleteExpenseCategory(id) {
+  const transaction = db.transaction(() => {
+    db.prepare(`UPDATE other_expenses SET category_id = NULL WHERE category_id = ?`).run(id)
+    db.prepare(`DELETE FROM expense_categories WHERE id = ?`).run(id)
+    db.prepare(`INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)`).run('expense_categories', id)
   })
   transaction()
   return true
@@ -1277,6 +1393,10 @@ module.exports = {
   getOtherExpensesCount,
   addOtherExpense,
   deleteOtherExpense,
+  getExpenseCategories,
+  addExpenseCategory,
+  updateExpenseCategory,
+  deleteExpenseCategory,
   getTmpRecords,
   getTmpRecordsCount,
   deleteTmpRecord,

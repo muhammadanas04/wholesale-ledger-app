@@ -294,11 +294,11 @@ export default function Ledger() {
       const headers = ["Date", "Customer Name", "Type", "Reference", "Debit (₹)", "Credit (₹)", "Discount (₹)", "Final Value (₹)", "Notes"]
 
       const rows = data.map((entry) => {
-        const isSale = entry.type === 'sale'
+        const isDebit = entry.type === 'sale' || entry.type === 'carried_forward'
         let discountVal = 0
         let finalVal = 0
-        if (isSale) {
-          if (roundingConfig && roundingConfig.enabled) {
+        if (isDebit) {
+          if (entry.type === 'sale' && roundingConfig && roundingConfig.enabled) {
             const result = applyRounding(entry.amount, roundingConfig)
             discountVal = result.discountInt / 100
             finalVal = result.finalInt / 100
@@ -312,12 +312,12 @@ export default function Ledger() {
         }
 
         return [
-          formatDate(entry.date),
+          entry.type === 'carried_forward' ? '' : formatDate(entry.date),
           entry.customer_name,
           entry.type,
-          isSale ? `Sale #${entry.id}` : `Pay #${entry.id}`,
-          isSale ? entry.amount / 100 : 0,
-          !isSale ? -entry.amount / 100 : 0,
+          entry.type === 'carried_forward' ? 'CF' : (entry.type === 'sale' ? `Sale #${entry.id}` : `Pay #${entry.id}`),
+          isDebit ? entry.amount / 100 : 0,
+          !isDebit ? -entry.amount / 100 : 0,
           discountVal,
           finalVal,
           entry.notes || ''
@@ -343,12 +343,12 @@ export default function Ledger() {
   let pageFinalCredit = 0
 
   entries.forEach((entry) => {
-    const isSale = entry.type === 'sale'
-    if (isSale) {
+    const isDebit = entry.type === 'sale' || entry.type === 'carried_forward'
+    if (isDebit) {
       pageDebit += entry.amount
       let discountInt = 0
       let finalInt = 0
-      if (roundingConfig && roundingConfig.enabled) {
+      if (entry.type === 'sale' && roundingConfig && roundingConfig.enabled) {
         const rounded = applyRounding(entry.amount, roundingConfig)
         discountInt = rounded.discountInt
         finalInt = rounded.finalInt
@@ -550,13 +550,13 @@ export default function Ledger() {
               ) : (
                 <>
                   {entries.map((entry, idx) => {
-                    const isSale = entry.type === 'sale'
+                    const isDebit = entry.type === 'sale' || entry.type === 'carried_forward'
 
                     // Calculate rounding/discount for sale amount
                     let discountInt = 0
                     let finalInt = 0
-                    if (isSale) {
-                      if (roundingConfig && roundingConfig.enabled) {
+                    if (isDebit) {
+                      if (entry.type === 'sale' && roundingConfig && roundingConfig.enabled) {
                         const result = applyRounding(entry.amount, roundingConfig)
                         discountInt = result.discountInt
                         finalInt = result.finalInt
@@ -568,36 +568,36 @@ export default function Ledger() {
 
                     return (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(entry.date)}</td>
+                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{entry.type === 'carried_forward' ? '' : formatDate(entry.date)}</td>
                         <td className="px-6 py-4 font-semibold text-gray-900">
                           <Link to={`/customers/${entry.customer_id}`} className="hover:text-blue-600 transition-colors">
                             {entry.customer_name}
                           </Link>
                         </td>
                         <td className="px-6 py-4 text-center whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isSale
-                            ? 'bg-orange-50 text-orange-700 border border-orange-100'
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isDebit
+                            ? (entry.type === 'carried_forward' ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-orange-50 text-orange-700 border border-orange-100')
                             : 'bg-green-50 text-green-700 border border-green-100'
                             }`}>
-                            {entry.type}
+                            {entry.type === 'carried_forward' ? 'CF' : entry.type}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap font-medium uppercase text-xs">
-                          <div>{isSale ? `Sale #${entry.id}` : `Pay #${entry.id}`}</div>
-                          {isSale && entry.weight > 0 && (
+                          <div>{entry.type === 'carried_forward' ? 'Carried Forward' : (entry.type === 'sale' ? `Sale #${entry.id}` : `Pay #${entry.id}`)}</div>
+                          {entry.type === 'sale' && entry.weight > 0 && (
                             <span className="text-[10px] font-bold text-gray-400 block mt-0.5 lowercase tracking-normal">
                               {entry.weight} kg
                             </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-orange-600">
-                          {isSale ? formatCurrency(entry.amount) : '-'}
+                          {isDebit ? formatCurrency(entry.amount) : '-'}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-green-600">
-                          {!isSale ? formatCurrency(-entry.amount) : '-'}
+                          {!isDebit ? formatCurrency(-entry.amount) : '-'}
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                          {isSale ? (
+                          {isDebit ? (
                             discountInt < 0 ? (
                               <span className="font-bold text-red-500">
                                 {formatCurrency(discountInt)}
@@ -620,7 +620,7 @@ export default function Ledger() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                          {isSale ? formatCurrency(finalInt) : formatCurrency(-entry.amount - entry.discount)}
+                          {isDebit ? formatCurrency(finalInt) : formatCurrency(-entry.amount - entry.discount)}
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400 italic font-medium max-w-xs truncate">
                           {entry.notes || '-'}

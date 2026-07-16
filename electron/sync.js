@@ -1,4 +1,4 @@
-const { getDatabase, getMeta, setMeta } = require('./db')
+const { getDatabase, getMeta, setMeta, recalculateBalance } = require('./db')
 const { BrowserWindow } = require('electron')
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
@@ -45,7 +45,7 @@ async function runSyncCycle() {
     }
 
     // ── 1. PULL ──────────────────────────────────────────────────
-    const pullResponse = await fetchWithTimeout(`${workerUrl}/pull?since=${encodeURIComponent(lastSync)}`, {
+    const pullResponse = await fetchWithTimeout(`${workerUrl}/pull?since=${encodeURIComponent(lastSync)}&v=2`, {
       headers: { 'Authorization': `Bearer ${secret}` }
     })
 
@@ -55,7 +55,11 @@ async function runSyncCycle() {
 
     // Sync remote rounding rules settings
     if (remoteData && remoteData._settings) {
-      const { rounding_rules: remoteRules, rounding_rules_updated_at: remoteRulesTime } = remoteData._settings
+      const { 
+        rounding_rules: remoteRules, rounding_rules_updated_at: remoteRulesTime,
+        carried_forward_data: remoteCf, carried_forward_updated_at: remoteCfTime
+      } = remoteData._settings
+      
       if (remoteRules && remoteRulesTime) {
         const localRulesTime = getMeta('rounding_rules_updated_at')
         if (!localRulesTime || new Date(remoteRulesTime) > new Date(localRulesTime)) {
@@ -63,9 +67,30 @@ async function runSyncCycle() {
           setMeta('rounding_rules_updated_at', remoteRulesTime)
         }
       }
+      
+      if (remoteCf && remoteCfTime) {
+        const localCfTime = getMeta('carried_forward_updated_at')
+        if (!localCfTime || new Date(remoteCfTime) > new Date(localCfTime)) {
+          const cfMap = JSON.parse(remoteCf)
+          // We must update the DB here, but avoid triggering 'synced = 0' for customers so we don't push right back.
+          // Since the pull step happens BEFORE push, we can just update carried_forward and the push step won't mind.
+          db.transaction(() => {
+            const updateCfStmt = db.prepare('UPDATE customers SET carried_forward = ? WHERE id = ?')
+            for (const [idStr, cfVal] of Object.entries(cfMap)) {
+              updateCfStmt.run(cfVal, Number(idStr))
+            }
+          })()
+          
+          // Trigger balance recalculation for affected customers
+          for (const idStr of Object.keys(cfMap)) {
+            recalculateBalance(Number(idStr))
+          }
+          setMeta('carried_forward_updated_at', remoteCfTime)
+        }
+      }
     }
 
-    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'tmp_records']
+    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
 
     db.pragma('foreign_keys = OFF')
     try {
@@ -106,12 +131,33 @@ async function runSyncCycle() {
     const pushedIds = {}
     for (const table of tables) {
       const rows = db.prepare(`SELECT * FROM ${table} WHERE synced = 0`).all()
-      pushData[table] = rows
+      if (table === 'customers') {
+        pushData[table] = rows.map(({ carried_forward, ...rest }) => rest)
+      } else {
+        pushData[table] = rows
+      }
       pushedIds[table] = rows.map(r => r.id)
     }
 
     const pendingDeletes = db.prepare('SELECT * FROM deleted_log WHERE synced = 0').all()
     const pendingDeleteIds = pendingDeletes.map(r => r.id)
+
+    // Build carried forward data to push
+    const cfRows = db.prepare('SELECT id, carried_forward, updated_at FROM customers').all()
+    const cfMap = {}
+    let maxCfTime = '1970-01-01T00:00:00Z'
+    cfRows.forEach(r => {
+      cfMap[r.id] = r.carried_forward
+      if (new Date(r.updated_at) > new Date(maxCfTime)) maxCfTime = r.updated_at
+    })
+    const localCfData = JSON.stringify(cfMap)
+    
+    // We update local CF time if it's behind the max customer update time
+    let localCfTime = getMeta('carried_forward_updated_at')
+    if (!localCfTime || new Date(maxCfTime) > new Date(localCfTime)) {
+       localCfTime = maxCfTime
+       setMeta('carried_forward_updated_at', localCfTime)
+    }
 
     const hasLocalChanges = Object.values(pushData).some(rows => rows.length > 0) || pendingDeletes.length > 0
 
@@ -119,14 +165,20 @@ async function runSyncCycle() {
     const localRules = getMeta('rounding_rules')
     const localRulesTime = getMeta('rounding_rules_updated_at')
     const hasSettingsChanges = localRulesTime && new Date(localRulesTime) > new Date(lastSync)
+    const hasCfChanges = localCfTime && new Date(localCfTime) > new Date(lastSync)
 
-    const shouldPush = hasLocalChanges || hasSettingsChanges
+    const shouldPush = hasLocalChanges || hasSettingsChanges || hasCfChanges
 
     if (shouldPush) {
-      const settingsPayload = (localRules && localRulesTime) ? {
-        rounding_rules: localRules,
-        rounding_rules_updated_at: localRulesTime
-      } : null
+      const settingsPayload = {}
+      if (localRules && localRulesTime) {
+        settingsPayload.rounding_rules = localRules
+        settingsPayload.rounding_rules_updated_at = localRulesTime
+      }
+      if (localCfData && localCfTime) {
+        settingsPayload.carried_forward_data = localCfData
+        settingsPayload.carried_forward_updated_at = localCfTime
+      }
 
       const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
         method: 'POST',
@@ -134,7 +186,7 @@ async function runSyncCycle() {
           'Authorization': `Bearer ${secret}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes, _settings: settingsPayload })
+        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes, _settings: Object.keys(settingsPayload).length > 0 ? settingsPayload : null })
       })
 
       if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)

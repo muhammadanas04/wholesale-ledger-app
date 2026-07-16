@@ -84,8 +84,17 @@ CREATE TABLE IF NOT EXISTS deleted_log (
   synced INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced INTEGER DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS other_expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id INTEGER,
   money_spent INTEGER NOT NULL DEFAULT 0,
   money_gained INTEGER NOT NULL DEFAULT 0,
   reason TEXT NOT NULL,
