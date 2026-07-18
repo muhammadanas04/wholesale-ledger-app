@@ -16,6 +16,7 @@ import Ledger from './pages/Ledger'
 import Settings from './pages/Settings'
 import OtherExpenses from './pages/OtherExpenses'
 import TmpRecords from './pages/TmpRecords'
+import DispatchHub from './pages/DispatchHub'
 import { ipc } from './lib/ipc'
 
 function App() {
@@ -89,6 +90,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/other-expenses" element={<OtherExpenses />} />
             <Route path="/tmp-records" element={<TmpRecords />} />
+            <Route path="/dispatch" element={<DispatchHub />} />
           </Routes>
         </main>
       </div>

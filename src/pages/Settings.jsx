@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ipc } from '../lib/ipc'
-import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Percent, Download, RefreshCw, ArrowUpCircle, AlertCircle } from 'lucide-react'
+import { Settings as SettingsIcon, Save, ShoppingBag, Cloud, CloudOff, Key, Trash2, CheckCircle, Coins, Percent, Download, RefreshCw, ArrowUpCircle, AlertCircle, CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function Settings() {
@@ -17,6 +17,8 @@ export default function Settings() {
     gst_type: 'exclusive',
     single_product_mode: 'false',
     show_rate_field: 'true',
+    global_cf_date_enabled: 'false',
+    global_cf_date: ''
   })
 
   const [singleProduct, setSingleProduct] = useState(null)
@@ -73,9 +75,11 @@ export default function Settings() {
         gst_percentage: '18',
         gst_type: 'exclusive',
         single_product_mode: 'false',
-        show_rate_field: 'true'
+        show_rate_field: 'true',
+        global_cf_date_enabled: 'false',
+        global_cf_date: ''
       }
-      for (const key of keys) {
+      for (const key of [...keys, 'global_cf_date_enabled', 'global_cf_date']) {
         const val = await ipc('meta:get', key)
         if (val !== null) newConfig[key] = val
       }
@@ -359,8 +363,8 @@ export default function Settings() {
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">GST Calculation Method</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${config.gst_type === 'exclusive'
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-700'
-                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                  ? 'border-blue-600 bg-blue-50/50 text-blue-700'
+                  : 'border-gray-200 hover:bg-gray-50 text-gray-600'
                   }`}>
                   <input
                     type="radio"
@@ -377,8 +381,8 @@ export default function Settings() {
                 </label>
 
                 <label className={`flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all duration-200 ${config.gst_type === 'inclusive'
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-700'
-                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                  ? 'border-blue-600 bg-blue-50/50 text-blue-700'
+                  : 'border-gray-200 hover:bg-gray-50 text-gray-600'
                   }`}>
                   <input
                     type="radio"
@@ -416,8 +420,8 @@ export default function Settings() {
                     type="button"
                     onClick={() => setConfig({ ...config, layout_size: sz })}
                     className={`flex-1 py-3 px-4 border rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${config.layout_size === sz
-                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-black shadow-sm'
-                        : 'border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-800'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-black shadow-sm'
+                      : 'border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-800'
                       }`}
                   >
                     {sz === 'normal' ? 'Normal (100%)' : sz === 'large' ? 'Large (112%)' : 'Extra Large (125%)'}
@@ -593,6 +597,40 @@ export default function Settings() {
               </div>
             </div>
 
+          </div>
+        </div>
+
+        {/* Carried Forward Date Settings */}
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-gray-800">
+              <CalendarDays className="w-4 h-4 text-purple-500" /> Global Carried Forward Date
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.global_cf_date_enabled === 'true'}
+                onChange={(e) => setConfig({ ...config, global_cf_date_enabled: e.target.checked ? 'true' : 'false' })}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+          <div className={`p-5 space-y-4 transition-opacity ${config.global_cf_date_enabled === 'true' ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className="p-4 border border-purple-100 bg-purple-50/30 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-gray-500">Enable this to apply a single overarching date to all carried forward amounts. This replaces individual customer dates.</span>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Global Date</label>
+                <input
+                  type="date"
+                  value={config.global_cf_date}
+                  onChange={(e) => setConfig({ ...config, global_cf_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

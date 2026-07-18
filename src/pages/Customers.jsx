@@ -38,21 +38,24 @@ export default function Customers() {
   }, [order])
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [form, setForm] = useState({ name: '', phone: '', address: '', carried_forward: '' })
+  const [form, setForm] = useState({ name: '', phone: '', address: '', carried_forward: '', carried_forward_date: '' })
+  const [globalCfEnabled, setGlobalCfEnabled] = useState(false)
 
   async function load() {
     setLoading(true)
     const offset = 0
     
-    const [data, count] = await Promise.all([
+    const [data, count, cfEnabled] = await Promise.all([
       search 
         ? ipc('customers:search', search, { limit: 100000, offset, sortBy, order })
         : ipc('customers:list', { limit: 100000, offset, sortBy, order }),
-      ipc('customers:count', search)
+      ipc('customers:count', search),
+      ipc('meta:get', 'global_cf_date_enabled')
     ])
     
     setCustomers(data || [])
     setTotal(1)
+    setGlobalCfEnabled(cfEnabled === 'true')
     setLoading(false)
   }
 
@@ -69,13 +72,19 @@ export default function Customers() {
 
   function openAdd() {
     setEditId(null)
-    setForm({ name: '', phone: '', address: '', carried_forward: '' })
+    setForm({ name: '', phone: '', address: '', carried_forward: '', carried_forward_date: '' })
     setShowForm(true)
   }
 
   function openEdit(c) {
     setEditId(c.id)
-    setForm({ name: c.name, phone: c.phone || '', address: c.address || '', carried_forward: c.carried_forward ? (c.carried_forward / 100).toString() : '' })
+    setForm({ 
+      name: c.name, 
+      phone: c.phone || '', 
+      address: c.address || '', 
+      carried_forward: c.carried_forward ? (c.carried_forward / 100).toString() : '',
+      carried_forward_date: c.carried_forward_date || ''
+    })
     setShowForm(true)
   }
 
@@ -84,7 +93,8 @@ export default function Customers() {
 
     const dataToSave = {
       ...form,
-      carried_forward: form.carried_forward ? Math.round(parseFloat(form.carried_forward) * 100) : 0
+      carried_forward: form.carried_forward ? Math.round(parseFloat(form.carried_forward) * 100) : 0,
+      carried_forward_date: form.carried_forward_date || null
     }
 
     const result = customerSchema.safeParse(dataToSave)
@@ -202,6 +212,15 @@ export default function Customers() {
             onChange={(e) => setForm({ ...form, carried_forward: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
           />
+          {!globalCfEnabled && (
+            <input
+              type="date"
+              placeholder="Carried Forward Date"
+              value={form.carried_forward_date}
+              onChange={(e) => setForm({ ...form, carried_forward_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          )}
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
               {editId ? 'Update' : 'Save'}

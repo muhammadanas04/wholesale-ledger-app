@@ -4,7 +4,8 @@ export const customerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
-  carried_forward: z.number().optional()
+  carried_forward: z.number().optional(),
+  carried_forward_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format').optional().nullable()
 })
 
 export const productSchema = z.object({

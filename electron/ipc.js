@@ -81,6 +81,44 @@ function registerIpcHandlers() {
   ipcMain.handle('tmp-records:count', wrap((_e, args) => db.getTmpRecordsCount(args)))
   ipcMain.handle('tmp-records:delete', wrap((_e, id) => db.deleteTmpRecord(id)))
 
+  // ── Drivers ──────────────────────────────────────────────────────
+  ipcMain.handle('drivers:list', wrap(() => db.getDrivers()))
+  ipcMain.handle('drivers:get', wrap((_e, id) => db.getDriver(id)))
+  ipcMain.handle('drivers:add', wrap((_e, data) => db.addDriver(data)))
+  ipcMain.handle('drivers:update', wrap((_e, id, data) => db.updateDriver(id, data)))
+  ipcMain.handle('drivers:toggle-status', wrap((_e, id) => db.toggleDriverActive(id)))
+
+  // ── Deliveries ───────────────────────────────────────────────────
+  ipcMain.handle('deliveries:list', wrap(() => db.getDeliveries()))
+  ipcMain.handle('deliveries:get', wrap((_e, id) => db.getDelivery(id)))
+  ipcMain.handle('deliveries:add', wrap((_e, data) => db.addDelivery(data)))
+  ipcMain.handle('deliveries:update-status', wrap((_e, id, status) => db.updateDeliveryStatus(id, status)))
+
+  // ── Driver Locations ─────────────────────────────────────────────
+  ipcMain.handle('drivers:locations', wrap(async () => {
+    const syncUrl = db.getMeta('sync_url')
+    const syncToken = db.getMeta('sync_token')
+    if (!syncUrl || !syncToken) {
+      throw new Error('Sync connection is not configured')
+    }
+    const cleanUrl = syncUrl.endsWith('/') ? syncUrl.slice(0, -1) : syncUrl
+    const url = `${cleanUrl}/driver/locations`
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${syncToken}`
+      }
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(text || `Request failed with code ${response.status}`)
+    }
+
+    return response.json()
+  }))
+
   // ── Reports ────────────────────────────────────────────────────
   ipcMain.handle('reports:sales-range', wrap((_e, startDate, endDate) => db.getSalesInRange(startDate, endDate)))
   ipcMain.handle('reports:top-products', wrap((_e, startDate, endDate) => db.getTopProducts(startDate, endDate)))

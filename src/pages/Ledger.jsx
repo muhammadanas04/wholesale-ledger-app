@@ -568,7 +568,7 @@ export default function Ledger() {
 
                     return (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{entry.type === 'carried_forward' ? '' : formatDate(entry.date)}</td>
+                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{entry.date !== '2000-01-01' ? formatDate(entry.date) : ''}</td>
                         <td className="px-6 py-4 font-semibold text-gray-900">
                           <Link to={`/customers/${entry.customer_id}`} className="hover:text-blue-600 transition-colors">
                             {entry.customer_name}

@@ -53,6 +53,18 @@ async function runSyncCycle() {
     
     const remoteData = await pullResponse.json()
 
+    try {
+      const pullDeliveryResponse = await fetchWithTimeout(`${workerUrl}/pull/delivery?since=${encodeURIComponent(lastSync)}`, {
+        headers: { 'Authorization': `Bearer ${secret}` }
+      })
+      if (pullDeliveryResponse.ok) {
+        const deliveryData = await pullDeliveryResponse.json()
+        Object.assign(remoteData, deliveryData)
+      }
+    } catch (e) {
+      console.warn('Delivery pull failed, skipping delivery sync this cycle', e)
+    }
+
     // Sync remote rounding rules settings
     if (remoteData && remoteData._settings) {
       const { 
@@ -90,7 +102,9 @@ async function runSyncCycle() {
       }
     }
 
-    const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
+    const coreTables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
+    const deliveryTables = ['drivers', 'deliveries', 'delivery_items']
+    const tables = [...coreTables, ...deliveryTables]
 
     db.pragma('foreign_keys = OFF')
     try {
@@ -180,21 +194,43 @@ async function runSyncCycle() {
         settingsPayload.carried_forward_updated_at = localCfTime
       }
 
-      const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${secret}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ...pushData, _deletes: pendingDeletes, _settings: Object.keys(settingsPayload).length > 0 ? settingsPayload : null })
-      })
+      // Split pushData into core and delivery
+      const corePushData = {}
+      for (const t of coreTables) if (pushData[t] && pushData[t].length > 0) corePushData[t] = pushData[t]
+      
+      const deliveryPushData = {}
+      for (const t of deliveryTables) if (pushData[t] && pushData[t].length > 0) deliveryPushData[t] = pushData[t]
 
-      if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)
+      const hasCorePush = Object.keys(corePushData).length > 0 || pendingDeletes.length > 0 || Object.keys(settingsPayload).length > 0
+      if (hasCorePush) {
+        const pushResponse = await fetchWithTimeout(`${workerUrl}/push`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${secret}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ ...corePushData, _deletes: pendingDeletes, _settings: Object.keys(settingsPayload).length > 0 ? settingsPayload : null })
+        })
+        if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)
+      }
+
+      const hasDeliveryPush = Object.keys(deliveryPushData).length > 0
+      if (hasDeliveryPush) {
+        const deliveryPushResponse = await fetchWithTimeout(`${workerUrl}/push/delivery`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${secret}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(deliveryPushData)
+        })
+        if (!deliveryPushResponse.ok) throw new Error(`Delivery Push failed: ${deliveryPushResponse.statusText}`)
+      }
 
       db.transaction(() => {
         for (const table of tables) {
           const ids = pushedIds[table]
-          if (ids.length > 0) {
+          if (ids && ids.length > 0) {
             const updateStmt = db.prepare(`UPDATE ${table} SET synced = 1 WHERE id = ?`)
             for (const id of ids) {
               updateStmt.run(id)

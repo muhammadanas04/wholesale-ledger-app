@@ -370,6 +370,8 @@ export default function CustomerDetail() {
   const [selectedSaleIds, setSelectedSaleIds] = useState([])
   const [selectedPaymentIds, setSelectedPaymentIds] = useState([])
   const [showRateField, setShowRateField] = useState(true)
+  const [globalCfEnabled, setGlobalCfEnabled] = useState(false)
+  const [globalCfDate, setGlobalCfDate] = useState('')
 
 
   const [singleProductMode, setSingleProductMode] = useState(false)
@@ -409,6 +411,12 @@ export default function CustomerDetail() {
 
       const rateFieldVal = await ipc('meta:get', 'show_rate_field')
       setShowRateField(rateFieldVal !== 'false')
+
+      const cfEn = await ipc('meta:get', 'global_cf_date_enabled')
+      setGlobalCfEnabled(cfEn === 'true')
+
+      const cfDate = await ipc('meta:get', 'global_cf_date')
+      if (cfDate) setGlobalCfDate(cfDate)
 
       const singleProductVal = await ipc('meta:get', 'single_product_mode')
       const isSingle = singleProductVal === 'true'
@@ -489,7 +497,7 @@ export default function CustomerDetail() {
   const transactions = [
     ...(customer.carried_forward ? [{
       type: 'carried_forward',
-      date: '2000-01-01',
+      date: globalCfEnabled && globalCfDate ? globalCfDate : (customer.carried_forward_date || '2000-01-01'),
       desc: 'Carried Forward Amount',
       original_amount: customer.carried_forward,
       discount: 0,
@@ -713,7 +721,7 @@ export default function CustomerDetail() {
                         />
                       ) : null}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{r.type === 'carried_forward' ? '' : formatDate(r.date)}</td>
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{r.date !== '2000-01-01' ? formatDate(r.date) : ''}</td>
                     <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
                     {showRateField && (
                       <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">

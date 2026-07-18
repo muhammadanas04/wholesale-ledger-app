@@ -5,7 +5,7 @@ const fs = require('fs')
 
 let db
 
-const SCHEMA_VERSION = 12
+const SCHEMA_VERSION = 14
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -38,7 +38,8 @@ function migrate() {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       synced INTEGER DEFAULT 0,
-      carried_forward INTEGER NOT NULL DEFAULT 0
+      carried_forward INTEGER NOT NULL DEFAULT 0,
+      carried_forward_date TEXT
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -275,6 +276,44 @@ function migrate() {
     }
   }
 
+  if (version < 13) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS drivers (
+          id TEXT PRIMARY KEY,
+          phone TEXT NOT NULL,
+          name TEXT,
+          otp TEXT,
+          otp_used INTEGER DEFAULT 0,
+          active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS deliveries (
+          id TEXT PRIMARY KEY,
+          driver_id TEXT NOT NULL REFERENCES drivers(id),
+          status TEXT NOT NULL,
+          notes TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 13 failed:', e)
+    }
+  }
+
+  if (version < 14) {
+    try {
+      db.exec("ALTER TABLE customers ADD COLUMN carried_forward_date TEXT;")
+    } catch (e) {
+      console.error('Migration to version 14 failed:', e)
+    }
+  }
+
   if (version < SCHEMA_VERSION) {
     db.prepare("UPDATE _meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION))
   }
@@ -305,23 +344,23 @@ function getCustomer(id) {
   return db.prepare('SELECT * FROM customers WHERE id = ?').get(id)
 }
 
-function addCustomer({ name, phone, address, carried_forward }) {
+function addCustomer({ name, phone, address, carried_forward, carried_forward_date }) {
   const cf = carried_forward ? Number(carried_forward) : 0
   const stmt = db.prepare(`
-    INSERT INTO customers (name, phone, address, carried_forward, balance)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO customers (name, phone, address, carried_forward, carried_forward_date, balance)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
-  const result = stmt.run(name, phone || null, address || null, cf, cf)
+  const result = stmt.run(name, phone || null, address || null, cf, carried_forward_date || null, cf)
   return getCustomer(result.lastInsertRowid)
 }
 
-function updateCustomer(id, { name, phone, address, carried_forward }) {
+function updateCustomer(id, { name, phone, address, carried_forward, carried_forward_date }) {
   const cf = carried_forward !== undefined ? Number(carried_forward) : 0
   db.prepare(`
     UPDATE customers
-    SET name = ?, phone = ?, address = ?, carried_forward = ?, updated_at = datetime('now'), synced = 0
+    SET name = ?, phone = ?, address = ?, carried_forward = ?, carried_forward_date = ?, updated_at = datetime('now'), synced = 0
     WHERE id = ?
-  `).run(name, phone || null, address || null, cf, id)
+  `).run(name, phone || null, address || null, cf, carried_forward_date || null, id)
   recalculateBalance(id)
   return getCustomer(id)
 }
@@ -1021,13 +1060,20 @@ function buildLedgerQueries(filters = {}) {
     paymentsSql += " WHERE " + paymentsConds.join(" AND ")
   }
 
+  const globalCfEnabled = db.prepare("SELECT value FROM _meta WHERE key = 'global_cf_date_enabled'").get()?.value === 'true'
+  const globalCfDate = db.prepare("SELECT value FROM _meta WHERE key = 'global_cf_date'").get()?.value
+
+  const dateExpr = globalCfEnabled && globalCfDate 
+    ? `'${globalCfDate}'` 
+    : "COALESCE(c.carried_forward_date, '2000-01-01')"
+
   let cfSql = `
     SELECT
       'carried_forward' AS type,
       c.id      AS id,
       c.id      AS customer_id,
       c.name    AS customer_name,
-      '2000-01-01' AS date,
+      ${dateExpr} AS date,
       c.carried_forward AS amount,
       0         AS discount,
       'Carried Forward' AS notes,
@@ -1044,18 +1090,12 @@ function buildLedgerQueries(filters = {}) {
     cfConds.push("c.id = ?")
     cfParams.push(Number(customer_id))
   }
-  // Date filters for carried forward are ignored so it always shows up in the ledger,
-  // or we can hide it if date_from > '2000-01-01'? The user wants it to be shown.
-  // Actually, if we filter by date, carried_forward might disappear, which makes the running balance incorrect.
-  // It's better to always include it if they query from the beginning, but let's just include it if no date_from is set, OR if we want it to always be there.
-  // Since date is '2000-01-01', if date_from is '2023-01-01', it won't be included if we add condition. Let's not add date conds for CF so the balance is right?
-  // Wait, if it's a date range, the user only wants entries in that range. So if date_from > 2000, CF shouldn't show.
   if (date_from) {
-    cfConds.push("'2000-01-01' >= ?")
+    cfConds.push(`${dateExpr} >= ?`)
     cfParams.push(date_from)
   }
   if (date_to) {
-    cfConds.push("'2000-01-01' <= ?")
+    cfConds.push(`${dateExpr} <= ?`)
     cfParams.push(date_to)
   }
   if (cfConds.length > 0) {
@@ -1354,6 +1394,69 @@ function cleanupOldTmpRecords() {
   db.prepare("DELETE FROM tmp_records WHERE date < date('now', '-15 days')").run()
 }
 
+// ── Drivers ────────────────────────────────────────────────────────
+
+function getDrivers() {
+  return db.prepare('SELECT * FROM drivers ORDER BY name ASC').all()
+}
+
+function getDriver(id) {
+  return db.prepare('SELECT * FROM drivers WHERE id = ?').get(id)
+}
+
+function addDriver({ id, name, phone, otp, otp_used, active }) {
+  db.prepare(`
+    INSERT INTO drivers (id, name, phone, otp, otp_used, active)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, name || null, phone, otp || null, otp_used || 0, active !== undefined ? active : 1)
+  return getDriver(id)
+}
+
+function updateDriver(id, { name, phone, otp, otp_used, active }) {
+  db.prepare(`
+    UPDATE drivers
+    SET name = ?, phone = ?, otp = ?, otp_used = ?, active = ?, updated_at = datetime('now'), synced = 0
+    WHERE id = ?
+  `).run(name || null, phone, otp || null, otp_used || 0, active !== undefined ? active : 1, id)
+  return getDriver(id)
+}
+
+function toggleDriverActive(id) {
+  const driver = getDriver(id)
+  if (!driver) return null
+  const nextActive = driver.active === 1 ? 0 : 1
+  db.prepare("UPDATE drivers SET active = ?, updated_at = datetime('now'), synced = 0 WHERE id = ?").run(nextActive, id)
+  return getDriver(id)
+}
+
+// ── Deliveries ─────────────────────────────────────────────────────
+
+function getDeliveries() {
+  return db.prepare(`
+    SELECT d.*, dr.name AS driver_name, dr.phone AS driver_phone
+    FROM deliveries d
+    LEFT JOIN drivers dr ON dr.id = d.driver_id
+    ORDER BY d.created_at DESC
+  `).all()
+}
+
+function getDelivery(id) {
+  return db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id)
+}
+
+function addDelivery({ id, driver_id, status, notes }) {
+  db.prepare(`
+    INSERT INTO deliveries (id, driver_id, status, notes)
+    VALUES (?, ?, ?, ?)
+  `).run(id, driver_id, status || 'pending', notes || null)
+  return getDelivery(id)
+}
+
+function updateDeliveryStatus(id, status) {
+  db.prepare("UPDATE deliveries SET status = ?, updated_at = datetime('now'), synced = 0 WHERE id = ?").run(status, id)
+  return getDelivery(id)
+}
+
 module.exports = {
   initDatabase,
   getDatabase,
@@ -1368,6 +1471,15 @@ module.exports = {
   getProducts,
   getProductsCount,
   getProduct,
+  getDrivers,
+  getDriver,
+  addDriver,
+  updateDriver,
+  toggleDriverActive,
+  getDeliveries,
+  getDelivery,
+  addDelivery,
+  updateDeliveryStatus,
   addProduct,
   updateProduct,
   adjustProductStock,
