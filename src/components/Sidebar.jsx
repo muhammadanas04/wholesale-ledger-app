@@ -9,8 +9,8 @@ import {
   Wallet, 
   BookOpen, 
   Settings,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Receipt,
   Clock,
   Truck
@@ -73,7 +73,7 @@ export default function Sidebar() {
           className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors duration-200"
           title={isCompact ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {isCompact ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          {isCompact ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
         </button>
       </div>
 

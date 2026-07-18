@@ -14,15 +14,23 @@ export default function Deliveries() {
 
   useEffect(() => {
     loadData()
+
+    // Auto-refresh when background sync completes
+    const unsubscribe = window.electronAPI.on('sync:status', (data) => {
+      if (data.status === 'online') {
+        loadData()
+      }
+    })
+    return () => unsubscribe && unsubscribe()
   }, [])
 
   const loadData = async () => {
-    const [delRes, drvRes] = await Promise.all([
+    const [delData, drvData] = await Promise.all([
       ipc('deliveries:list'),
       ipc('drivers:list')
     ])
-    if (delRes.success) setDeliveries(delRes.data)
-    if (drvRes.success) setDrivers(drvRes.data.filter(d => d.active === 1)) // Only active drivers
+    if (delData) setDeliveries(delData)
+    if (drvData) setDrivers(drvData.filter(d => d.active === 1)) // Only active drivers
   }
 
   const handleCreateDelivery = async (e) => {

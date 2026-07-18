@@ -15,11 +15,19 @@ export default function Drivers() {
 
   useEffect(() => {
     loadDrivers()
+
+    // Auto-refresh when background sync completes
+    const unsubscribe = window.electronAPI.on('sync:status', (data) => {
+      if (data.status === 'online') {
+        loadDrivers()
+      }
+    })
+    return () => unsubscribe && unsubscribe()
   }, [])
 
   const loadDrivers = async () => {
-    const res = await ipc('drivers:list')
-    if (res.success) setDrivers(res.data)
+    const data = await ipc('drivers:list')
+    if (data) setDrivers(data)
   }
 
   const handleRegisterDriver = async (e) => {
@@ -72,7 +80,8 @@ export default function Drivers() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Drivers List</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage delivery drivers and access credentials.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage delivery drivers and
+access credentials.</p>
         </div>
         <button
           onClick={() => setIsAddModalOpen(true)}

@@ -36,6 +36,7 @@ async function runSyncCycle() {
   try {
     const db = getDatabase()
     const lastSync = getMeta('last_sync_time') || '1970-01-01 00:00:00'
+    const lastDeliverySync = getMeta('last_delivery_sync_time') || '1970-01-01 00:00:00'
     const workerUrl = getMeta('sync_url')
     const secret = getMeta('sync_token')
 
@@ -54,7 +55,7 @@ async function runSyncCycle() {
     const remoteData = await pullResponse.json()
 
     try {
-      const pullDeliveryResponse = await fetchWithTimeout(`${workerUrl}/pull/delivery?since=${encodeURIComponent(lastSync)}`, {
+      const pullDeliveryResponse = await fetchWithTimeout(`${workerUrl}/pull/delivery?since=${encodeURIComponent(lastDeliverySync)}`, {
         headers: { 'Authorization': `Bearer ${secret}` }
       })
       if (pullDeliveryResponse.ok) {
@@ -255,6 +256,7 @@ async function runSyncCycle() {
 
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
     setMeta('last_sync_time', now)
+    setMeta('last_delivery_sync_time', now)
     notifyRenderer({ status: 'online', lastSync: now })
 
   } catch (error) {

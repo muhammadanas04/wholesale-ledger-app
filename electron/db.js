@@ -5,7 +5,7 @@ const fs = require('fs')
 
 let db
 
-const SCHEMA_VERSION = 14
+const SCHEMA_VERSION = 15
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -311,6 +311,32 @@ function migrate() {
       db.exec("ALTER TABLE customers ADD COLUMN carried_forward_date TEXT;")
     } catch (e) {
       console.error('Migration to version 14 failed:', e)
+    }
+  }
+
+  if (version < 15) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS delivery_items (
+          id TEXT PRIMARY KEY,
+          delivery_id TEXT NOT NULL,
+          address TEXT NOT NULL,
+          stock_amount TEXT NOT NULL,
+          status TEXT DEFAULT 'pending',
+          customer_id TEXT,
+          notes TEXT,
+          qty INTEGER DEFAULT 0,
+          weight REAL,
+          total_price INTEGER,
+          customer_name TEXT,
+          customer_phone TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 15 failed:', e)
     }
   }
 
