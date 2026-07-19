@@ -103,7 +103,7 @@ async function runSyncCycle() {
       }
     }
 
-    const coreTables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
+    const coreTables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records', 'bulk_drafts']
     const deliveryTables = ['drivers', 'deliveries', 'delivery_items']
     const tables = [...coreTables, ...deliveryTables]
 

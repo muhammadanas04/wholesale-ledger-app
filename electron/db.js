@@ -5,7 +5,7 @@ const fs = require('fs')
 
 let db
 
-const SCHEMA_VERSION = 15
+const SCHEMA_VERSION = 16
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -337,6 +337,24 @@ function migrate() {
       `)
     } catch (e) {
       console.error('Migration to version 15 failed:', e)
+    }
+  }
+
+  if (version < 16) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS bulk_drafts (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          data TEXT NOT NULL,
+          name TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          synced INTEGER DEFAULT 0
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 16 failed:', e)
     }
   }
 
@@ -1416,6 +1434,47 @@ function getTmpRecordsCount({ date_from, date_to, type } = {}) {
   return db.prepare(sql).get(...params).count
 }
 
+// ── Bulk Drafts ─────────────────────────────────────────────────
+
+function getBulkDrafts(type) {
+  if (type && type !== 'all') {
+    return db.prepare('SELECT * FROM bulk_drafts WHERE type = ? ORDER BY updated_at DESC').all(type)
+  }
+  return db.prepare('SELECT * FROM bulk_drafts ORDER BY updated_at DESC').all()
+}
+
+function getBulkDraft(id) {
+  return db.prepare('SELECT * FROM bulk_drafts WHERE id = ?').get(id)
+}
+
+function addBulkDraft({ id, type, data, name }) {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  db.prepare(`
+    INSERT INTO bulk_drafts (id, type, data, name, created_at, updated_at, synced)
+    VALUES (?, ?, ?, ?, ?, ?, 0)
+  `).run(id, type, data, name || null, now, now)
+  return getBulkDraft(id)
+}
+
+function updateBulkDraft(id, { data, name }) {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  db.prepare(`
+    UPDATE bulk_drafts
+    SET data = ?, name = ?, updated_at = ?, synced = 0
+    WHERE id = ?
+  `).run(data, name || null, now, id)
+  return getBulkDraft(id)
+}
+
+function deleteBulkDraft(id) {
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM bulk_drafts WHERE id = ?').run(id)
+    db.prepare('INSERT INTO deleted_log (table_name, row_id) VALUES (?, ?)').run('bulk_drafts', id)
+  })
+  transaction()
+  return true
+}
+
 function cleanupOldTmpRecords() {
   db.prepare("DELETE FROM tmp_records WHERE date < date('now', '-15 days')").run()
 }
@@ -1550,6 +1609,11 @@ module.exports = {
   getTmpRecordsCount,
   deleteTmpRecord,
   cleanupOldTmpRecords,
+  getBulkDrafts,
+  getBulkDraft,
+  addBulkDraft,
+  updateBulkDraft,
+  deleteBulkDraft,
   clearDatabase,
 }
 

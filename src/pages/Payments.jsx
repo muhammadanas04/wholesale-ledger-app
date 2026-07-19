@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import DatePicker from '../components/DatePicker'
 import CustomerSelect from '../components/CustomerSelect'
+import BulkEntryModal from '../components/BulkEntryModal'
 import { ipc } from '../lib/ipc'
-import { Plus, Wallet, Trash2, Download, Calendar } from 'lucide-react'
+import { Plus, Wallet, Trash2, Download, Calendar, Layers } from 'lucide-react'
 import { paymentSchema } from '../lib/schemas'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { toast } from 'sonner'
@@ -24,6 +25,7 @@ export default function Payments() {
   const [notes, setNotes] = useState('')
   const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showBulkEntry, setShowBulkEntry] = useState(false)
 
   // Confirm dialog state
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -132,9 +134,19 @@ export default function Payments() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Wallet className="w-6 h-6 text-gray-700" />
-        <h1 className="text-2xl font-bold text-gray-800">Record Payment</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wallet className="w-6 h-6 text-gray-700" />
+          <h1 className="text-2xl font-bold text-gray-800">Record Payment</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowBulkEntry(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md"
+        >
+          <Layers className="w-4 h-4" />
+          Bulk Entry
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 shadow-sm">
@@ -310,6 +322,15 @@ export default function Payments() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmOpen(false)}
         confirmText="Delete Record"
+      />
+
+      {/* Bulk Entry Modal */}
+      <BulkEntryModal
+        isOpen={showBulkEntry}
+        onClose={() => setShowBulkEntry(false)}
+        mode="payment"
+        customers={customers}
+        onMergeComplete={load}
       />
     </div>
   )

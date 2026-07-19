@@ -198,3 +198,13 @@ CREATE INDEX IF NOT EXISTS idx_delivery_items_delivery ON delivery_items(deliver
 CREATE INDEX IF NOT EXISTS idx_deliveries_driver ON deliveries(driver_id);
 CREATE INDEX IF NOT EXISTS idx_driver_locations_driver ON driver_locations(driver_id);
 
+CREATE TABLE IF NOT EXISTS bulk_drafts (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  data TEXT NOT NULL,
+  name TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  synced INTEGER DEFAULT 0
+);
+

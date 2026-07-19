@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import DatePicker from '../components/DatePicker'
 import CustomerSelect from '../components/CustomerSelect'
+import BulkEntryModal from '../components/BulkEntryModal'
 import { ipc } from '../lib/ipc'
-import { Plus, Trash2, ShoppingCart, Download, Calendar } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, Download, Calendar, Layers } from 'lucide-react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { saleSchema } from '../lib/schemas'
 import { toast } from 'sonner'
@@ -27,6 +28,7 @@ export default function NewSale() {
   const [finalValue, setFinalValue] = useState('')
   const [singleProductMode, setSingleProductMode] = useState(false)
   const [showRateField, setShowRateField] = useState(true)
+  const [showBulkEntry, setShowBulkEntry] = useState(false)
 
   // Calculate raw subtotal of items in Rupees
   const subtotal = items.reduce((s, item) => {
@@ -287,11 +289,23 @@ export default function NewSale() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <ShoppingCart className="w-6 h-6 text-gray-700" />
-        <h1 className="text-2xl font-bold text-gray-800">
-          {isEditMode ? `Edit Sale #${id}` : 'New Sale'}
-        </h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="w-6 h-6 text-gray-700" />
+          <h1 className="text-2xl font-bold text-gray-800">
+            {isEditMode ? `Edit Sale #${id}` : 'New Sale'}
+          </h1>
+        </div>
+        {!isEditMode && (
+          <button
+            type="button"
+            onClick={() => setShowBulkEntry(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md"
+          >
+            <Layers className="w-4 h-4" />
+            Bulk Entry
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -702,6 +716,16 @@ export default function NewSale() {
           </table>
         </div>
       </div>
+
+      {/* Bulk Entry Modal */}
+      <BulkEntryModal
+        isOpen={showBulkEntry}
+        onClose={() => setShowBulkEntry(false)}
+        mode="sale"
+        customers={customers}
+        products={products}
+        onMergeComplete={loadRecentSales}
+      />
     </div>
   )
 }

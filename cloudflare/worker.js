@@ -176,7 +176,7 @@ export default {
 
       const since = getClampedSince(url.searchParams.get('since'))
       const apiVersion = url.searchParams.get('v')
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records', 'bulk_drafts']
       const results = {}
 
       for (const table of tables) {
@@ -188,9 +188,10 @@ export default {
       }
 
       // Backward compatibility for legacy clients (like the older Android admin app).
-      // If the client didn't specify v=2, hide the new category schema so it doesn't crash on pull.
+      // If the client didn't specify v=2, hide the new category schema and bulk drafts so it doesn't crash on pull.
       if (apiVersion !== '2') {
         delete results['expense_categories']
+        delete results['bulk_drafts']
         if (results['other_expenses']) {
           results['other_expenses'] = results['other_expenses'].map(({ category_id, ...rest }) => rest)
         }
@@ -234,7 +235,7 @@ export default {
       if (authError) return authError
 
       const data = await request.json()
-      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records']
+      const tables = ['customers', 'products', 'stock_purchases', 'sales', 'sale_items', 'payments', 'other_expenses', 'expense_categories', 'tmp_records', 'bulk_drafts']
 
       try {
         const stmts = []

@@ -81,6 +81,20 @@ function registerIpcHandlers() {
   ipcMain.handle('tmp-records:count', wrap((_e, args) => db.getTmpRecordsCount(args)))
   ipcMain.handle('tmp-records:delete', wrap((_e, id) => db.deleteTmpRecord(id)))
 
+  // ── Bulk Drafts ───────────────────────────────────────────────
+  ipcMain.handle('bulk-drafts:list', wrap((_e, type) => db.getBulkDrafts(type)))
+  ipcMain.handle('bulk-drafts:get', wrap((_e, id) => db.getBulkDraft(id)))
+  ipcMain.handle('bulk-drafts:save', wrap((_e, data) => {
+    if (data.id) {
+      const existing = db.getBulkDraft(data.id)
+      if (existing) {
+        return db.updateBulkDraft(data.id, data)
+      }
+    }
+    return db.addBulkDraft(data)
+  }))
+  ipcMain.handle('bulk-drafts:delete', wrap((_e, id) => db.deleteBulkDraft(id)))
+
   // ── Drivers ──────────────────────────────────────────────────────
   ipcMain.handle('drivers:list', wrap(() => db.getDrivers()))
   ipcMain.handle('drivers:get', wrap((_e, id) => db.getDriver(id)))
