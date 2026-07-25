@@ -219,9 +219,12 @@ export default {
 
       results['_settings'] = {
         rounding_rules: roundingRules,
-        rounding_rules_updated_at: roundingRulesUpdatedAt,
-        carried_forward_data: carriedForwardData,
-        carried_forward_updated_at: carriedForwardUpdatedAt
+        rounding_rules_updated_at: roundingRulesUpdatedAt
+      }
+
+      if (apiVersion === '2') {
+        results['_settings'].carried_forward_data = carriedForwardData
+        results['_settings'].carried_forward_updated_at = carriedForwardUpdatedAt
       }
 
       return new Response(JSON.stringify(results), {

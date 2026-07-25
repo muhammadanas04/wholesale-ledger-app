@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ipc } from '../lib/ipc'
-import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer, Pencil } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Trash2, Download, FileText, Printer, Pencil, CheckSquare, Square, Bell, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import { formatCurrency, formatDate, formatPhone, applyRounding } from '../lib/formatters'
 import Skeleton from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -348,7 +348,11 @@ export default function CustomerDetail() {
   const [customer, setCustomer] = useState(null)
   const [sales, setSales] = useState([])
   const [payments, setPayments] = useState([])
+  const [reminders, setReminders] = useState([])
   const [loading, setLoading] = useState(true)
+
+  const [newReminderPeriod, setNewReminderPeriod] = useState('')
+  const [newReminderType, setNewReminderType] = useState('forever')
 
   // Meta details for headers and rules
   const [roundingConfig, setRoundingConfig] = useState(null)
@@ -376,6 +380,22 @@ export default function CustomerDetail() {
 
   const [singleProductMode, setSingleProductMode] = useState(false)
   const [productUnit, setProductUnit] = useState('')
+
+  // Local entry status
+  const [localStatuses, setLocalStatuses] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('local_entry_statuses') || '{}')
+    } catch (e) {
+      return {}
+    }
+  })
+
+  const toggleLocalStatus = (type, id) => {
+    const key = `${type}_${id}`
+    const next = { ...localStatuses, [key]: !localStatuses[key] }
+    setLocalStatuses(next)
+    localStorage.setItem('local_entry_statuses', JSON.stringify(next))
+  }
 
   useEffect(() => {
     async function loadMeta() {
@@ -438,15 +458,17 @@ export default function CustomerDetail() {
 
   async function load() {
     setLoading(true)
-    const [c, allSales, p] = await Promise.all([
+    const [c, allSales, p, r] = await Promise.all([
       ipc('customers:get', Number(id)),
       ipc('sales:list', { limit: 100000 }), // Filter locally for simple ledger
-      ipc('payments:by-customer', Number(id))
+      ipc('payments:by-customer', Number(id)),
+      ipc('reminders:get', Number(id))
     ])
 
     setCustomer(c)
     setSales((allSales || []).filter((s) => s.customer_id === Number(id)))
     setPayments(p || [])
+    setReminders(r || [])
     setLoading(false)
   }
 
@@ -473,6 +495,31 @@ export default function CustomerDetail() {
     setDeleteCustomerConfirmOpen(false)
     toast.success('Customer deleted')
     navigate('/customers')
+  }
+
+  async function handleAddReminder(e) {
+    e.preventDefault()
+    if (!newReminderPeriod) return
+    await ipc('reminders:add', {
+      customer_id: customer.id,
+      period_days: Number(newReminderPeriod),
+      type: newReminderType
+    })
+    setNewReminderPeriod('')
+    toast.success('Reminder added')
+    load()
+  }
+
+  async function handleDeleteReminder(remId) {
+    await ipc('reminders:delete', remId)
+    toast.success('Reminder deleted')
+    load()
+  }
+
+  async function handleResetReminder(remId) {
+    await ipc('reminders:reset', remId)
+    toast.success('Reminder reset successfully')
+    load()
   }
 
   async function handleDownloadPDF() {
@@ -613,6 +660,91 @@ export default function CustomerDetail() {
           </div>
         </div>
 
+        {/* Reminders Section */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm no-print">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell className="w-5 h-5 text-gray-500" />
+            <h2 className="text-lg font-black text-gray-900 tracking-tight">Reminders</h2>
+          </div>
+          
+          <form onSubmit={handleAddReminder} className="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period (Days)</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={newReminderPeriod}
+                onChange={(e) => setNewReminderPeriod(e.target.value)}
+                className="w-32 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
+                placeholder="e.g. 3"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Type</label>
+              <select
+                value={newReminderType}
+                onChange={(e) => setNewReminderType(e.target.value)}
+                className="w-40 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
+              >
+                <option value="forever">Repeating</option>
+                <option value="once">One-time</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-sm h-[38px]"
+            >
+              Add Reminder
+            </button>
+          </form>
+
+          {reminders.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {reminders.map(r => (
+                <div key={r.id} className={`p-4 border rounded-xl flex flex-col justify-between ${r.active ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {r.period_days} Days
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${r.type === 'forever' ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'}`}>
+                        {r.type === 'forever' ? 'Repeating' : 'One-time'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-600 mt-2">
+                      Started: <span className="font-bold">{formatDate(r.start_date)}</span>
+                    </p>
+                    {!r.active && (
+                      <p className="text-xs font-bold text-red-500 mt-1 uppercase tracking-wider">Inactive</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-200/60">
+                    {r.active && (
+                      <button
+                        onClick={() => handleResetReminder(r.id)}
+                        className="flex-1 flex justify-center items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-gray-50 transition-colors shadow-sm"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Acknowledge
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteReminder(r.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 bg-white border border-gray-200 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                      title="Delete Reminder"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm font-medium text-gray-400 italic">No reminders set for this customer.</p>
+          )}
+        </div>
+
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -691,7 +823,7 @@ export default function CustomerDetail() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                  <tr key={i} className="hover:bg-gray-50 transition-colors group relative">
                     <td className="w-12 px-6 py-4 text-center no-print">
                       {r.type === 'sale' ? (
                         <input
@@ -721,7 +853,21 @@ export default function CustomerDetail() {
                         />
                       ) : null}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{r.date !== '2000-01-01' ? formatDate(r.date) : ''}</td>
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap relative">
+                      <div className={`absolute left-1.5 top-1/2 -translate-y-1/2 transition-opacity ${localStatuses[`${r.type}_${r.id}`] ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <button 
+                          onClick={() => toggleLocalStatus(r.type, r.id)}
+                          className="text-gray-400 hover:text-green-600 focus:outline-none"
+                        >
+                          {localStatuses[`${r.type}_${r.id}`] ? (
+                            <CheckSquare className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      {r.date !== '2000-01-01' ? formatDate(r.date) : ''}
+                    </td>
                     <td className="px-6 py-4 font-medium text-gray-800">{r.desc}</td>
                     {showRateField && (
                       <td className="px-6 py-4 text-right font-semibold text-gray-700 whitespace-nowrap">

@@ -25,6 +25,14 @@ function registerIpcHandlers() {
   ipcMain.handle('customers:update', wrap((_e, id, data) => db.updateCustomer(id, data)))
   ipcMain.handle('customers:delete', wrap((_e, id) => db.deleteCustomer(id)))
   ipcMain.handle('customers:search', wrap((_e, query, args) => db.searchCustomers(query, args)))
+  ipcMain.handle('customers:recalculate-balance', wrap((_e, customerId) => db.recalculateBalance(customerId)))
+
+  // ── Customer Reminders ─────────────────────────────────────────
+  ipcMain.handle('reminders:get', wrap((_e, customerId) => db.getCustomerReminders(customerId)))
+  ipcMain.handle('reminders:due', wrap(() => db.getDueReminders()))
+  ipcMain.handle('reminders:add', wrap((_e, data) => db.addCustomerReminder(data)))
+  ipcMain.handle('reminders:delete', wrap((_e, id) => db.deleteCustomerReminder(id)))
+  ipcMain.handle('reminders:reset', wrap((_e, id) => db.resetCustomerReminder(id)))
 
   // ── Products ───────────────────────────────────────────────────
   ipcMain.handle('products:list', wrap((_e, args) => db.getProducts(args)))
@@ -139,9 +147,6 @@ function registerIpcHandlers() {
   ipcMain.handle('reports:top-customers', wrap((_e, startDate, endDate) => db.getTopCustomers(startDate, endDate)))
   ipcMain.handle('reports:stock-movements', wrap((_e, startDate, endDate) => db.getStockMovements(startDate, endDate)))
   ipcMain.handle('reports:inventory-value', wrap(() => db.getInventoryValue()))
-
-  // ── Balance ────────────────────────────────────────────────────
-  ipcMain.handle('customers:recalculate-balance', wrap((_e, customerId) => db.recalculateBalance(customerId)))
 
   // ── Sync ───────────────────────────────────────────────────────
   ipcMain.handle('sync:run', wrap(() => sync.runSyncCycle()))

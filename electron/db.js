@@ -5,7 +5,7 @@ const fs = require('fs')
 
 let db
 
-const SCHEMA_VERSION = 16
+const SCHEMA_VERSION = 17
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'wholesale-ledger.db')
   db = new Database(dbPath)
@@ -355,6 +355,25 @@ function migrate() {
       `)
     } catch (e) {
       console.error('Migration to version 16 failed:', e)
+    }
+  }
+
+  if (version < 17) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS customer_reminders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER NOT NULL REFERENCES customers(id),
+          type TEXT NOT NULL,
+          period_days INTEGER NOT NULL,
+          start_date TEXT NOT NULL,
+          active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        );
+      `)
+    } catch (e) {
+      console.error('Migration to version 17 failed:', e)
     }
   }
 
@@ -761,6 +780,10 @@ function addSale({ customer_id, date, notes, items, discount = 0, total_amount }
     }
 
     recalculateBalance(customer_id)
+    
+    // Reset forever reminders
+    db.prepare(`UPDATE customer_reminders SET start_date = datetime('now'), updated_at = datetime('now') WHERE customer_id = ? AND type = 'forever' AND active = 1`).run(customer_id)
+
     return saleId
   })
 
@@ -936,6 +959,10 @@ function addPayment({ customer_id, amount, date, notes, discount = 0 }) {
   const transaction = db.transaction(() => {
     const result = insertPayment.run(customer_id, amount, discount || 0, date, notes || null)
     recalculateBalance(customer_id)
+    
+    // Reset forever reminders
+    db.prepare(`UPDATE customer_reminders SET start_date = datetime('now'), updated_at = datetime('now') WHERE customer_id = ? AND type = 'forever' AND active = 1`).run(customer_id)
+
     return result.lastInsertRowid
   })
 
@@ -1542,6 +1569,48 @@ function updateDeliveryStatus(id, status) {
   return getDelivery(id)
 }
 
+// ── Customer Reminders ──────────────────────────────────────────────
+
+function addCustomerReminder({ customer_id, type, period_days }) {
+  const stmt = db.prepare(`
+    INSERT INTO customer_reminders (customer_id, type, period_days, start_date)
+    VALUES (?, ?, ?, datetime('now'))
+  `)
+  const result = stmt.run(customer_id, type, period_days)
+  return db.prepare('SELECT * FROM customer_reminders WHERE id = ?').get(result.lastInsertRowid)
+}
+
+function getCustomerReminders(customer_id) {
+  return db.prepare('SELECT * FROM customer_reminders WHERE customer_id = ? ORDER BY created_at DESC').all(customer_id)
+}
+
+function getDueReminders() {
+  return db.prepare(`
+    SELECT cr.*, c.name as customer_name 
+    FROM customer_reminders cr
+    JOIN customers c ON c.id = cr.customer_id
+    WHERE cr.active = 1 
+      AND datetime(cr.start_date, '+' || cr.period_days || ' days') <= datetime('now')
+  `).all()
+}
+
+function deleteCustomerReminder(id) {
+  db.prepare('DELETE FROM customer_reminders WHERE id = ?').run(id)
+  return true
+}
+
+function resetCustomerReminder(id) {
+  const reminder = db.prepare('SELECT * FROM customer_reminders WHERE id = ?').get(id)
+  if (!reminder) return false
+  
+  if (reminder.type === 'once') {
+    db.prepare("UPDATE customer_reminders SET active = 0, updated_at = datetime('now') WHERE id = ?").run(id)
+  } else {
+    db.prepare("UPDATE customer_reminders SET start_date = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id)
+  }
+  return true
+}
+
 module.exports = {
   initDatabase,
   getDatabase,
@@ -1614,6 +1683,11 @@ module.exports = {
   addBulkDraft,
   updateBulkDraft,
   deleteBulkDraft,
+  addCustomerReminder,
+  getCustomerReminders,
+  getDueReminders,
+  deleteCustomerReminder,
+  resetCustomerReminder,
   clearDatabase,
 }
 

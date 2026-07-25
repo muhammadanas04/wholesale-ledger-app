@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { CheckSquare, Square } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import DatePicker from '../components/DatePicker'
 import { ipc } from '../lib/ipc'
@@ -144,6 +145,22 @@ export default function Ledger() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Local entry status
+  const [localStatuses, setLocalStatuses] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('local_entry_statuses') || '{}')
+    } catch (e) {
+      return {}
+    }
+  })
+
+  const toggleLocalStatus = (type, id) => {
+    const key = `${type}_${id}`
+    const next = { ...localStatuses, [key]: !localStatuses[key] }
+    setLocalStatuses(next)
+    localStorage.setItem('local_entry_statuses', JSON.stringify(next))
+  }
 
   // Dialog States
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -567,8 +584,22 @@ export default function Ledger() {
                     }
 
                     return (
-                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{entry.date !== '2000-01-01' ? formatDate(entry.date) : ''}</td>
+                      <tr key={idx} className="hover:bg-gray-50 transition-colors group relative">
+                        <td className="px-6 py-4 text-gray-500 whitespace-nowrap relative">
+                          <div className={`absolute left-1.5 top-1/2 -translate-y-1/2 transition-opacity ${localStatuses[`${entry.type}_${entry.reference_id || entry.id}`] ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                            <button 
+                              onClick={() => toggleLocalStatus(entry.type, entry.reference_id || entry.id)}
+                              className="text-gray-400 hover:text-green-600 focus:outline-none"
+                            >
+                              {localStatuses[`${entry.type}_${entry.reference_id || entry.id}`] ? (
+                                <CheckSquare className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <Square className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                          {entry.date !== '2000-01-01' ? formatDate(entry.date) : ''}
+                        </td>
                         <td className="px-6 py-4 font-semibold text-gray-900">
                           <Link to={`/customers/${entry.customer_id}`} className="hover:text-blue-600 transition-colors">
                             {entry.customer_name}
