@@ -123,12 +123,13 @@ export default function Customers() {
         return toast.error('No customers to export')
       }
 
-      const headers = ["ID", "Name", "Phone", "Address", "Outstanding Balance (₹)"]
+      const headers = ["ID", "Name", "Phone", "Address", "Total Sales (₹)", "Outstanding Balance (₹)"]
       const rows = data.map((c) => [
         c.id,
         c.name,
         c.phone ? formatPhone(c.phone) : '-',
         c.address || '-',
+        c.total_sales / 100,
         c.balance / 100
       ])
 

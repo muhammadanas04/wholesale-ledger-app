@@ -389,8 +389,9 @@ function getCustomers({ limit = 50, offset = 0, sortBy = 'name', order = 'ASC' }
   const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
   
   return db.prepare(`
-    SELECT * FROM customers 
-    ORDER BY ${safeSort} ${safeOrder}
+    SELECT c.*, COALESCE((SELECT SUM(total_amount - discount) FROM sales WHERE customer_id = c.id), 0) AS total_sales 
+    FROM customers c
+    ORDER BY c.${safeSort} ${safeOrder}
     LIMIT ? OFFSET ?
   `).all(limit, offset)
 }
@@ -434,9 +435,10 @@ function searchCustomers(query, { limit = 50, offset = 0, sortBy = 'name', order
   const safeOrder = order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
 
   return db.prepare(`
-    SELECT * FROM customers
-    WHERE name LIKE ? OR phone LIKE ?
-    ORDER BY ${safeSort} ${safeOrder}
+    SELECT c.*, COALESCE((SELECT SUM(total_amount - discount) FROM sales WHERE customer_id = c.id), 0) AS total_sales
+    FROM customers c
+    WHERE c.name LIKE ? OR c.phone LIKE ?
+    ORDER BY c.${safeSort} ${safeOrder}
     LIMIT ? OFFSET ?
   `).all(like, like, limit, offset)
 }
