@@ -27,29 +27,11 @@ export default function StockPurchase() {
   }
 
   const handleWeightChange = (val) => {
-    const weightNum = parseFloat(val) || 0
-    const totalNum = parseFloat(form.total_cost) || 0
-
-    let newRate = form.rate
-    if (weightNum > 0 && totalNum > 0) {
-      newRate = String(Math.round((totalNum / weightNum) * 10000) / 10000)
-    } else if (weightNum === 0) {
-      newRate = ''
-    }
-    setForm(f => ({ ...f, weight: val, rate: newRate }))
+    setForm(f => ({ ...f, weight: val }))
   }
 
   const handleTotalCostChange = (val) => {
-    const totalNum = parseFloat(val) || 0
-    const weightNum = parseFloat(form.weight) || 0
-
-    let newRate = form.rate
-    if (weightNum > 0 && totalNum > 0) {
-      newRate = String(Math.round((totalNum / weightNum) * 10000) / 10000)
-    } else if (weightNum === 0) {
-      newRate = ''
-    }
-    setForm(f => ({ ...f, total_cost: val, rate: newRate }))
+    setForm(f => ({ ...f, total_cost: val }))
   }
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -113,11 +95,12 @@ export default function StockPurchase() {
     const qty = Number(form.qty) || 0
     const totalCost = Number(form.total_cost) || 0
     const weight = form.weight ? Number(form.weight) : null
+    const rate = form.rate ? Number(form.rate) : 0
 
     const purchaseData = {
       product_id: Number(form.product_id),
       qty,
-      cost_price: form.rate ? Number(form.rate) : (weight > 0 ? totalCost / weight : 0),
+      cost_price: rate > 0 ? rate : (weight > 0 ? totalCost / weight : (qty > 0 ? totalCost / qty : 0)),
       total_cost: totalCost,
       supplier: form.supplier || '',
       firm_name: form.firm_name || '',
@@ -170,7 +153,7 @@ export default function StockPurchase() {
         p.qty,
         p.unit,
         p.weight > 0 ? p.weight : 0,
-        p.weight > 0 ? (p.total_cost / p.weight) / 100 : '',
+        p.cost_price ? p.cost_price / 100 : (p.weight > 0 ? (p.total_cost / p.weight) / 100 : ''),
         p.total_cost !== null && p.total_cost !== undefined ? p.total_cost / 100 : (p.weight > 0 ? p.weight * p.cost_price : p.qty * p.cost_price) / 100,
         p.supplier || '',
         p.firm_name || '',
@@ -325,7 +308,7 @@ export default function StockPurchase() {
               <input
                 type="number"
                 step="any"
-                placeholder="Weight (optional)"
+                placeholder="Weight"
                 value={form.weight}
                 onChange={(e) => handleWeightChange(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -490,7 +473,7 @@ export default function StockPurchase() {
                       </td>
                       {showRateField && (
                         <td className="px-5 py-3 text-right text-gray-700 font-semibold">
-                          {p.weight > 0 ? formatCurrency(p.total_cost / p.weight) : '-'}
+                          {p.cost_price ? formatCurrency(p.cost_price) : (p.weight > 0 ? formatCurrency(p.total_cost / p.weight) : '-')}
                         </td>
                       )}
                       <td className="px-5 py-3 text-right text-orange-600 font-bold">
@@ -535,7 +518,9 @@ export default function StockPurchase() {
                   </td>
                   {showRateField && (
                     <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
-                      {purchasesWeightTotal > 0 ? formatCurrency(purchasesTotalCost / purchasesWeightTotal) : '-'}
+                      {purchasesWeightTotal > 0
+                        ? formatCurrency(purchasesTotalCost / purchasesWeightTotal)
+                        : (purchasesQtyTotal > 0 ? formatCurrency(purchasesTotalCost / purchasesQtyTotal) : '-')}
                     </td>
                   )}
                   <td className="px-5 py-3 text-right font-bold text-orange-600 whitespace-nowrap">

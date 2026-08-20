@@ -7,6 +7,7 @@ import { formatCurrency, formatPhone } from '../lib/formatters'
 import { toast } from 'sonner'
 import Pagination from '../components/Pagination'
 import Skeleton from '../components/Skeleton'
+import CustomerExportModal from '../components/CustomerExportModal'
 
 const LIMIT = 10
 
@@ -37,6 +38,7 @@ export default function Customers() {
     localStorage.setItem('customers_order', order)
   }, [order])
   const [showForm, setShowForm] = useState(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ name: '', phone: '', address: '', carried_forward: '', carried_forward_date: '' })
   const [globalCfEnabled, setGlobalCfEnabled] = useState(false)
@@ -113,43 +115,13 @@ export default function Customers() {
     load()
   }
 
-  const handleExportExcel = async () => {
-    try {
-      const data = search 
-        ? await ipc('customers:search', search, { limit: 100000, offset: 0, sortBy, order })
-        : await ipc('customers:list', { limit: 100000, offset: 0, sortBy, order })
-
-      if (!data || data.length === 0) {
-        return toast.error('No customers to export')
-      }
-
-      const headers = ["ID", "Name", "Phone", "Address", "Total Sales (₹)", "Outstanding Balance (₹)"]
-      const rows = data.map((c) => [
-        c.id,
-        c.name,
-        c.phone ? formatPhone(c.phone) : '-',
-        c.address || '-',
-        c.total_sales / 100,
-        c.balance / 100
-      ])
-
-      const success = await ipc('app:export-excel', 'Customers_List', headers, rows)
-      if (success) {
-        toast.success('Customers list exported successfully')
-      }
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to export customers')
-    }
-  }
-
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Customers</h1>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleExportExcel}
+            onClick={() => setExportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-medium transition-all shadow-sm"
           >
             <Download className="w-4 h-4" /> Export Excel
@@ -261,6 +233,14 @@ export default function Customers() {
           </>
         )}
       </div>
+
+      <CustomerExportModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        search={search}
+        sortBy={sortBy}
+        order={order}
+      />
     </div>
   )
 }

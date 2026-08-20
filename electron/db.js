@@ -443,6 +443,61 @@ function searchCustomers(query, { limit = 50, offset = 0, sortBy = 'name', order
   `).all(like, like, limit, offset)
 }
 
+function getCustomerReportData({ search = '', startDate, endDate, sortBy = 'name', order = 'ASC' } = {}) {
+  let salesDateCond = ''
+  let paymentsDateCond = ''
+
+  if (startDate && endDate) {
+    salesDateCond = 'AND date >= ? AND date <= ?'
+    paymentsDateCond = 'AND date >= ? AND date <= ?'
+  } else if (startDate) {
+    salesDateCond = 'AND date >= ?'
+    paymentsDateCond = 'AND date >= ?'
+  } else if (endDate) {
+    salesDateCond = 'AND date <= ?'
+    paymentsDateCond = 'AND date <= ?'
+  }
+
+  const query = `
+    SELECT 
+      c.id,
+      c.name,
+      c.phone,
+      c.carried_forward,
+      c.balance,
+      COALESCE((
+        SELECT SUM(total_amount - discount) 
+        FROM sales 
+        WHERE customer_id = c.id ${salesDateCond}
+      ), 0) AS total_sales,
+      COALESCE((
+        SELECT SUM(amount - discount) 
+        FROM payments 
+        WHERE customer_id = c.id ${paymentsDateCond}
+      ), 0) AS total_payments
+    FROM customers c
+    ${search ? 'WHERE (c.name LIKE ? OR c.phone LIKE ?)' : ''}
+    ORDER BY c.${['name', 'balance', 'created_at', 'id'].includes(sortBy) ? sortBy : 'name'} ${order.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}
+  `
+
+  const allParams = []
+  if (startDate && endDate) {
+    allParams.push(startDate, endDate, startDate, endDate)
+  } else if (startDate) {
+    allParams.push(startDate, startDate)
+  } else if (endDate) {
+    allParams.push(endDate, endDate)
+  }
+
+  if (search) {
+    const like = `%${search}%`
+    allParams.push(like, like)
+  }
+
+  return db.prepare(query).all(...allParams)
+}
+
+
 function recalculateBalance(customerId) {
   const customer = db.prepare('SELECT carried_forward FROM customers WHERE id = ?').get(customerId)
   const cf = customer ? customer.carried_forward : 0
@@ -1623,6 +1678,7 @@ module.exports = {
   updateCustomer,
   deleteCustomer,
   searchCustomers,
+  getCustomerReportData,
   recalculateBalance,
   getProducts,
   getProductsCount,

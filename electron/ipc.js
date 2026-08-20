@@ -25,6 +25,7 @@ function registerIpcHandlers() {
   ipcMain.handle('customers:update', wrap((_e, id, data) => db.updateCustomer(id, data)))
   ipcMain.handle('customers:delete', wrap((_e, id) => db.deleteCustomer(id)))
   ipcMain.handle('customers:search', wrap((_e, query, args) => db.searchCustomers(query, args)))
+  ipcMain.handle('customers:report-data', wrap((_e, args) => db.getCustomerReportData(args)))
   ipcMain.handle('customers:recalculate-balance', wrap((_e, customerId) => db.recalculateBalance(customerId)))
 
   // ── Customer Reminders ─────────────────────────────────────────
