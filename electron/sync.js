@@ -147,7 +147,7 @@ async function runSyncCycle() {
     for (const table of tables) {
       const rows = db.prepare(`SELECT * FROM ${table} WHERE synced = 0`).all()
       if (table === 'customers') {
-        pushData[table] = rows.map(({ carried_forward, ...rest }) => rest)
+        pushData[table] = rows.map(({ carried_forward, carried_forward_date, ...rest }) => rest)
       } else {
         pushData[table] = rows
       }

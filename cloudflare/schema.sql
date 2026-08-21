@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS customers (
   phone TEXT,
   address TEXT,
   balance INTEGER NOT NULL DEFAULT 0,
+  carried_forward INTEGER NOT NULL DEFAULT 0,
+  carried_forward_date TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   synced INTEGER DEFAULT 0
