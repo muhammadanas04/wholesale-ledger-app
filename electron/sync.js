@@ -212,7 +212,11 @@ async function runSyncCycle() {
           },
           body: JSON.stringify({ ...corePushData, _deletes: pendingDeletes, _settings: Object.keys(settingsPayload).length > 0 ? settingsPayload : null })
         })
-        if (!pushResponse.ok) throw new Error(`Push failed: ${pushResponse.statusText}`)
+        if (!pushResponse.ok) {
+          const errBody = await pushResponse.text()
+          console.error('Push error body:', errBody)
+          throw new Error(`Push failed: ${errBody || pushResponse.statusText}`)
+        }
       }
 
       const hasDeliveryPush = Object.keys(deliveryPushData).length > 0
@@ -225,7 +229,11 @@ async function runSyncCycle() {
           },
           body: JSON.stringify(deliveryPushData)
         })
-        if (!deliveryPushResponse.ok) throw new Error(`Delivery Push failed: ${deliveryPushResponse.statusText}`)
+        if (!deliveryPushResponse.ok) {
+          const errBody = await deliveryPushResponse.text()
+          console.error('Delivery push error body:', errBody)
+          throw new Error(`Delivery Push failed: ${errBody || deliveryPushResponse.statusText}`)
+        }
       }
 
       db.transaction(() => {
