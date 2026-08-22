@@ -43,6 +43,9 @@ export default function TopBar() {
       if (data.status === 'not-configured') {
         setSyncConfigured(false)
         setSyncError(null)
+      } else if (data.status === 'offline') {
+        // Silently acknowledge — the WiFi indicator already shows offline status
+        setSyncError(null)
       } else if (data.status === 'error') {
         setSyncError(data.error)
         toast.error(`Sync failed: ${data.error}`)

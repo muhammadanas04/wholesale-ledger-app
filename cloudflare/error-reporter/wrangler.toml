@@ -1,0 +1,9 @@
+name = "wholesale-error-reporter"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "ERROR_LOGS"
+id = "8880147ab5d146aba2b7bf3b62629bbf"
+
+# Secret: ERROR_SECRET — set with `wrangler secret put ERROR_SECRET`

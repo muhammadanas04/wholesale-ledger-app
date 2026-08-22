@@ -4,6 +4,19 @@ const { autoUpdater } = require('electron-updater')
 const { initDatabase, getMeta } = require('./db')
 const { registerIpcHandlers } = require('./ipc')
 const { startSync } = require('./sync')
+const { reportError } = require('./error-reporter')
+
+// ── Global error handlers — catch anything that escapes ──
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  reportError({ error, source: 'uncaught', context: 'process uncaughtException' })
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason)
+  const error = reason instanceof Error ? reason : new Error(String(reason))
+  reportError({ error, source: 'unhandled-rejection', context: 'process unhandledRejection' })
+})
 
 let mainWindow
 

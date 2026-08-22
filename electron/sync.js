@@ -1,11 +1,35 @@
 const { getDatabase, getMeta, setMeta, recalculateBalance } = require('./db')
-const { BrowserWindow } = require('electron')
+const { BrowserWindow, net } = require('electron')
+const { reportError } = require('./error-reporter')
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const OFFLINE_RETRY_MS = 30 * 1000 // 30 seconds — check more often when offline so we resume quickly
 const FETCH_TIMEOUT_MS = 10000 // 10 seconds
 
 let isSyncing = false
 let syncTimeout
+let wasOffline = false // tracks whether we were offline so we can trigger immediate sync on reconnect
+
+function isOnline() {
+  try {
+    return net.isOnline()
+  } catch {
+    // net module may not be available in all contexts; assume online and let fetch fail
+    return true
+  }
+}
+
+function isNetworkError(error) {
+  if (error.name === 'AbortError') return true
+  const msg = (error.message || '').toLowerCase()
+  return msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('err_internet_disconnected')
+}
 
 async function startSync() {
   runSyncCycle()
@@ -30,6 +54,22 @@ async function runSyncCycle() {
     notifyRenderer({ status: 'error', error: 'Sync already in progress — click again after it finishes' })
     return
   }
+
+  // ── Offline guard: skip sync silently when there's no internet ──
+  if (!isOnline()) {
+    wasOffline = true
+    notifyRenderer({ status: 'offline' })
+    // Schedule a shorter retry so we pick up connectivity quickly
+    syncTimeout = setTimeout(runSyncCycle, OFFLINE_RETRY_MS)
+    return
+  }
+
+  // If we just came back online, log it
+  if (wasOffline) {
+    wasOffline = false
+    console.log('Network restored — resuming sync')
+  }
+
   isSyncing = true
   notifyRenderer({ status: 'syncing' })
 
@@ -64,6 +104,7 @@ async function runSyncCycle() {
       }
     } catch (e) {
       console.warn('Delivery pull failed, skipping delivery sync this cycle', e)
+      reportError({ error: e, source: 'sync', context: 'delivery pull' })
     }
 
     // Sync remote rounding rules settings
@@ -260,6 +301,7 @@ async function runSyncCycle() {
       db.prepare("DELETE FROM tmp_records WHERE date < date('now', '-15 days')").run()
     } catch (e) {
       console.error('tmp_records cleanup error:', e)
+      reportError({ error: e, source: 'sync', context: 'tmp_records cleanup' })
     }
 
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
@@ -268,16 +310,22 @@ async function runSyncCycle() {
     notifyRenderer({ status: 'online', lastSync: now })
 
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.error('Sync Error: Request timed out')
-      notifyRenderer({ status: 'error', error: 'Sync timed out — check your network or Worker URL' })
+    // If the error is network-related, treat it as offline instead of showing an error
+    if (isNetworkError(error)) {
+      wasOffline = true
+      console.warn('Sync skipped — network unavailable:', error.message)
+      notifyRenderer({ status: 'offline' })
     } else {
+      // Genuine server/logic errors still get reported
       console.error('Sync Error:', error.message)
       notifyRenderer({ status: 'error', error: error.message })
+      reportError({ error, source: 'sync', context: 'sync cycle' })
     }
   } finally {
     isSyncing = false
-    syncTimeout = setTimeout(runSyncCycle, SYNC_INTERVAL_MS)
+    // Use shorter interval when offline so we resume quickly once connected
+    const nextInterval = wasOffline ? OFFLINE_RETRY_MS : SYNC_INTERVAL_MS
+    syncTimeout = setTimeout(runSyncCycle, nextInterval)
   }
 }
 
@@ -289,4 +337,3 @@ function notifyRenderer(data) {
 }
 
 module.exports = { startSync, stopSync, runSyncCycle }
-
